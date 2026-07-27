@@ -1,7 +1,8 @@
-from database import show_expenses, add_expense, delete_expense, init_db
+from database import show_expenses, add_expense, delete_expense,update_expense, init_db
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import uvicorn
+from datetime import date
 
 app = FastAPI(title="Expense Tracker Advanced API")
 
@@ -11,11 +12,26 @@ class Expensepayloaad(BaseModel):
     category: str
     description: str
     amount: float
+    date: date
+
+class ExpenseUpdatePayload(BaseModel):
+    id: int
+    category: str
+    description: str
+    amount: float
+    date: date
 
 @app.post("/expense")
 def api_add_expense(payload: Expensepayloaad):
-    result = add_expense(payload.category, payload.description, payload.amount)
-    if result == "error":
+    result = add_expense(payload.category, payload.description, payload.amount, payload.date)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    return result
+
+@app.put("/expense")
+def api_put_expense(paylaod: ExpenseUpdatePayload):
+    result = update_expense(paylaod.id, paylaod.category, paylaod.description, paylaod.amount, paylaod.date)
+    if not result["success"]:
         raise HTTPException(status_code=400, detail=result["message"])
     return result
 
@@ -26,12 +42,14 @@ def api_show_expense():
 @app.delete("/expense")
 def api_delete_expense(paylaod: Expensepayloaad):
     result = delete_expense(paylaod.category, paylaod.description, paylaod.amount)
-    if result == "error":
+    if not result["success"]:
             raise HTTPException(status_code=400, detail=result["message"])
     return result
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    
+
 
 
 '''
