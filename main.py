@@ -1,13 +1,69 @@
 import crud
 import schemas
-from fastapi import FastAPI, HTTPException, status
 import uvicorn
+from fastapi import FastAPI, HTTPException, status, Depends
+from database import get_db
+from sqlalchemy.orm import Session
+
 
 
 app = FastAPI(title="Expense Tracker Advanced API")
 
 crud.init_db()
 
+@app.post("/expense", status_code=status.HTTP_201_CREATED)
+def api_add_expense(payload: schemas.ExpenseCreate, db: Session = Depends(get_db)):
+    result = crud.add_expense(db, payload.category, payload.description, payload.amount, payload.date)
+    if not result["success"]:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result["message"])
+    return result
+
+@app.get("/expense", status_code=status.HTTP_200_OK)
+def api_show_expense(db: Session = Depends(get_db)):
+    return crud.show_expenses(db)
+
+@app.delete("/expense", status_code=status.HTTP_200_OK)
+def api_delete_expense(payload: schemas.ExpenseCreate, db: Session = Depends(get_db)):
+    result = crud.delete_expense(db, payload.category, payload.description, payload.amount)
+    if not result["success"]:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result["message"])
+    return result
+
+@app.put("/expenses/{id}", status_code=status.HTTP_200_OK)
+def api_update_expense(id: int, payload: schemas.ExpenseUpdate, db: Session = Depends(get_db)):
+    result = crud.update_expense_by_id(db, id, payload.category, payload.description, payload.amount, payload.date)
+    if result["status"] == "not_found":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=result["message"])
+    if result["status"] == "category_missing":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result["message"])
+    return {"message": result["message"]}
+
+@app.get("/expenses/category/{category}", status_code=status.HTTP_200_OK)
+def api_get_expenses_by_category(category: str, db: Session = Depends(get_db)):
+    result = crud.get_expenses_by_category(db, category)
+    if result["status"] == "not_found":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=result["message"])
+    return result["data"]
+
+@app.get("/expenses/stats", status_code=status.HTTP_200_OK)
+def api_get_expenses_stats(db: Session = Depends(get_db)):
+    result = crud.get_expense_stats(db)
+    return result["data"]
+
+
+@app.get("/expenses/search", status_code=status.HTTP_200_OK)
+def api_search_expenses(keyword: str, db: Session = Depends(get_db)):
+    if not keyword.strip():
+        return []
+        
+    return crud.search_expenses(db, keyword)
+
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    
+    
+    
+"""
 @app.post("/expense", status_code=status.HTTP_201_CREATED)
 def api_add_expense(payload: schemas.ExpenseCreate):
     result = crud.add_expense(payload.category, payload.description, payload.amount, payload.date)
@@ -46,10 +102,8 @@ def api_get_expenese_by_category(category: str):
 def api_get_status():
     result = crud.get_expense_stats()
     return result["data"]
+"""
 
-if __name__ == "__main__":
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
-    
 
 
 
