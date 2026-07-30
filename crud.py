@@ -4,21 +4,23 @@ from datetime import date
 from database import engine, Base
 import models
 
+def _get_category_or_none(db: Session, category_name: str):
+    return db.query(models.Category).filter(
+        models.Category.name.ilike(category_name.strip())
+    ).first()
+
 def init_db():
     Base.metadata.create_all(bind=engine)
     
 def add_expense(db: Session, category: str, description: str, amount: float, expense_date: date):
-    cleaned_category = category.strip()
-    cleaned_description = description.strip()
     
-    category_row = db.query(models.Category).filter(models.Category.name.ilike(cleaned_category)).first()
-    
+    category_row = _get_category_or_none(db, category)
     if category_row is None:
-        return {"success": False, "message": f"Category {cleaned_category} does not exist!"}
+        return {"success": False, "message": f"Category {category.strip()} does not exist!"}
     
     new_expense = models.Expense(
         category_id=category_row.id,
-        description=cleaned_description,
+        description=description.strip(),
         amount=amount,
         date=expense_date
     )
@@ -30,29 +32,24 @@ def add_expense(db: Session, category: str, description: str, amount: float, exp
     
 def show_expenses(db: Session):
     expenses = db.query(models.Expense).all()
-    exp_list = []
-    for exp in expenses:
-        exp_list.append({
-            "id": exp.id,
-            "category": exp.category_rel.name,
-            "description": exp.description,
-            "amount": exp.amount,
-            "date": str(exp.date)
-        })
-    return exp_list
+    return [{
+        "id": exp.id,
+        "category": exp.category_rel.name,
+        "description": exp.description,
+        "amount": exp.amount,
+        "date": str(exp.date)
+    } for exp in expenses]
 
 
 def delete_expense(db: Session, category: str, description: str, amount: float):
-    cleaned_category = category.strip()
-    cleaned_description = description.strip()
-
-    category_row = db.query(models.Category).filter(models.Category.name.ilike(cleaned_category)).first()
+    
+    category_row = _get_category_or_none(db, category)
     if category_row is None:
-        return {"success": False, "message": f"Category '{cleaned_category}' does not exist!"}
+        return {"success": False, "message": f"Category '{category.strip()}' does not exist!"}
 
     target_expense = db.query(models.Expense).filter(
         models.Expense.category_id == category_row.id,
-        models.Expense.description.ilike(cleaned_description),
+        models.Expense.description.ilike(description.strip()),
         models.Expense.amount == amount
     ).first()
 
@@ -64,12 +61,10 @@ def delete_expense(db: Session, category: str, description: str, amount: float):
     return {"success": True, "message": "Deleted successfully!"}
 
 def update_expense_by_id(db: Session, expense_id: int, category: str, description: str, amount: float, expense_date: date):
-    cleaned_category = category.strip()
-    cleaned_description = description.strip()
-
-    category_row = db.query(models.Category).filter(models.Category.name.ilike(cleaned_category)).first()
+    
+    category_row = _get_category_or_none(db, category)
     if category_row is None:
-        return {"status": "category_missing", "message": f"Category '{cleaned_category}' does not exist!"}
+        return {"status": "category_missing", "message": f"Category '{category.strip()}' does not exist!"}
 
     expense_row = db.query(models.Expense).filter(models.Expense.id == expense_id).first()
     if expense_row is None:
@@ -77,7 +72,7 @@ def update_expense_by_id(db: Session, expense_id: int, category: str, descriptio
 
 
     expense_row.category_id = category_row.id
-    expense_row.description = cleaned_description
+    expense_row.description = description.strip()
     expense_row.amount = amount
     expense_row.date = expense_date
 
@@ -85,24 +80,22 @@ def update_expense_by_id(db: Session, expense_id: int, category: str, descriptio
     return {"status": "completed", "message": f"Expense ID {expense_id} updated successfully!"}
 
 def get_expenses_by_category(db: Session, category_name: str):
-    cleaned_category = category_name.strip()
-
-    category_row = db.query(models.Category).filter(models.Category.name.ilike(cleaned_category)).first()
+    
+    category_row = _get_category_or_none(db, category_name)
     if category_row is None:
-        return {"status": "not_found", "message": f"Category '{cleaned_category}' does not exist!"}
+        return {"status": "not_found", "message": f"Category '{category_name.strip()}' does not exist!"}
 
     expenses = db.query(models.Expense).filter(models.Expense.category_id == category_row.id).all()
-    
-    exp_list = []
-    for exp in expenses:
-        exp_list.append({
+    return {
+        "status": "completed", 
+        "data": [{
             "id": exp.id,
             "category": category_row.name,
             "description": exp.description,
             "amount": exp.amount,
             "date": str(exp.date)
-        })
-    return {"status": "completed", "data": exp_list}
+        } for exp in expenses]
+    }
 
 def get_expense_stats(db: Session):
     stats = db.query(
@@ -118,12 +111,10 @@ def get_expense_stats(db: Session):
         }
 
     highest = db.query(models.Expense).order_by(models.Expense.amount.desc()).first()
-    highest_expense = None
-    if highest:
-        highest_expense = {
-            "description": highest.description,
-            "amount": float(highest.amount)
-        }
+    highest_expense = {
+        "description": highest.description,
+        "amount": float(highest.amount)
+    } if highest else None
 
     return {
         "status": "completed",
@@ -137,10 +128,8 @@ def get_expense_stats(db: Session):
     
     
 
-
 def search_expenses(db: Session, keyword: str):
     cleaned_keyword = f"%{keyword.strip()}%"  
-
     expenses = db.query(models.Expense).join(models.Category).filter(
         or_(
             models.Expense.description.ilike(cleaned_keyword), 
@@ -148,16 +137,13 @@ def search_expenses(db: Session, keyword: str):
         )
     ).all()
 
-    exp_list = []
-    for exp in expenses:
-        exp_list.append({
-            "id": exp.id,
-            "category": exp.category_rel.name,
-            "description": exp.description,
-            "amount": exp.amount,
-            "date": str(exp.date)
-        })
-    return exp_list
+    return [{
+        "id": exp.id,
+        "category": exp.category_rel.name,
+        "description": exp.description,
+        "amount": exp.amount,
+        "date": str(exp.date)
+    } for exp in expenses]
 
 
 """

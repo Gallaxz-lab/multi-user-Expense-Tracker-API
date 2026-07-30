@@ -3,46 +3,53 @@
 > [!WARNING]
 > This project is currently in its initial development phase. Please note the following lack of robust error prevention mechanisms:
 
-- **No Advanced Error Handling**: The system does not yet catch database connection dropouts or unexpected crashes inside Python smoothly.
-- **Strict Data Validation Missing**: There is no automatic correction or validation checking for typos, extra whitespaces, or uppercase/lowercase mismatches (e.g., entering "food" vs "Food" might cause category lookup failures).
-- **Missing Dynamic Category Insertion**: If you add an expense with a category that does not already exist in the database, the API will simply throw a `400 Bad Request` instead of creating the category automatically.
-- **Explicit Type Enforcement Required**: Ensure that the data payload perfectly matches the type expectations to prevent runtime exceptions.
 
+# 💰 Expense Tracker API (Enterprise ORM Edition)
 
-# 💰 Expense Tracker API
+A professional, production-ready RESTful API for tracking personal expenses, built with **FastAPI** and **SQLAlchemy ORM**, backed by a relational **PostgreSQL** database. 
 
-A lightweight and robust RESTful API for tracking personal expenses, built with **FastAPI** and **PostgreSQL**. The system features relational database storage with automatic category mapping.
+This project features a decoupled, scalable architecture separating API routers, database configurations, business logic (CRUD), and data validation schemas.
 
 ## 🚀 Features
 
-- **Relational Database**: Uses PostgreSQL with an `INNER JOIN` structure between expenses and categories.
-- **Auto-Validation**: Automatic request validation using Pydantic models.
-- **Interactive Docs**: Built-in Swagger UI for quick API testing.
-- **Clean Architecture**: Decoupled codebase separating database queries (`database.py`) from API endpoints (`main.py`).
+- **Object-Relational Mapping (ORM)**: Built using native **SQLAlchemy** classes and relationships instead of legacy raw SQL string statements.
+- **Dependency Injection**: Safe session tracking using FastAPI's `Depends` manager to completely prevent database connection memory resource leaks.
+- **Smart Analytics Engine**: Aggregates complex database tracking math metrics (`COUNT`, `SUM`, `AVG`, `MAX`) dynamically using database functions.
+- **Resilient Search Subsystem**: Integrates full case-insensitive partial keyword scanning (`ILIKE`) crossing database description strings and category names natively.
+- **Automatic Structural Migrations**: Auto-evaluates model configurations and constructs tables natively into your active database instance upon startup.
+
+## 🛠️ Prerequisites
+
+Before launching the server, ensure your local environment contains:
+- Python 3.10+
+- Active PostgreSQL Database Socket Server
 
 ## 📦 Installation & Setup
 
-1. **Clone or navigate** to your project directory:
+1. **Navigate** to your source destination directory:
    ```bash
-   cd path/to/python-postgres-expense
+   cd path/to/expense-api
    ```
 
-2. **Install required dependencies**:
+2. **Install all required dependencies** compiled inside the system manifest:
    ```bash
-   pip install fastapi uvicorn psycopg
+   pip install -r requirements.txt
    ```
 
 3. **Database Configuration**:
-   Open `database.py` and update your PostgreSQL connection parameters in the `get_db_connection()` function:
+   Open `database.py` and modify the dictionary properties inside the `create_engine` parameters block to align with your personal environment credentials:
    ```python
-   def get_db_connection():
-       return psycopg.connect(
-           host="127.0.0.1",
-           port="5432",
-           dbname="expense_tracker",
-           user="postgres",
-           password="YOUR_PASSWORD"
-       )
+   engine = create_engine(
+       "postgresql+psycopg://",
+       connect_args={
+           "host": "127.0.0.1",
+           "port": "5432",
+           "dbname": "expense_tracker",
+           "user": "postgres",
+           "password": "YOUR_ACTUAL_PASSWORD"
+       },
+       echo=True # Prints generated SQL commands directly to the terminal for easy debugging
+   )
    ```
 
 ## 🏃 Running the Application
@@ -58,7 +65,37 @@ FastAPI automatically generates interactive documentation. Once the server is ru
 
 
 ## 📂 Project Structure
-python-postgres-expense/
-├── database.py   # Handles database connections, tables initialization, and SQL queries (CRUD)
-├── main.py       # Configures FastAPI app, Pydantic schemas, and web routing (Endpoints)
-└── README.md     # Project documentation
+```text
+expense-api/
+│
+├── database.py     # Database engine, connection configurations, and session local factories
+├── models.py       # Core SQLAlchemy relational database table blueprints
+├── schemas.py      # Pydantic network data validation and parsing schemas
+├── crud.py         # Business operations logic utilizing pure Python ORM interactions
+├── main.py         # FastAPI application initializing endpoints and web routing controls
+├── requirements.txt# Manifest of system dependencies and external library pins
+└── README.md       # Comprehensive system documentation
+
+
+## 🛣️ API Endpoints Summary
+
+### 1. Expenses Core
+- **`POST /expense`** - Adds a new expense row entry. Generates an `HTTP 201 Created` status code.
+- **`GET /expense`** - Fetches all recorded expenses mapped to their relation strings.
+- **`DELETE /expense`** - Removes a specific expense item evaluating matching parameter contexts safely.
+
+### 2. Advanced Search & Filtering
+- **`PUT /expenses/{id}`** - Updates an existing record targeted via its primary key URL path variable.
+- **`GET /expenses/category/{category}`** - Returns a subset of expenses filtering explicitly under one singular category string case-insensitively.
+- **`GET /expenses/search?keyword=coffee`** - Scans the database and handles partial matches across descriptions or categories seamlessly.
+
+### 3. Analytics Matrix
+- **`GET /expenses/stats`** - Computes high-level overview metrics tracking entry counts, totals, averages, and your highest singular recorded asset description.
+
+
+> [!IMPORTANT]
+> Because this system employs a strict relational Foreign Key block design, **you cannot save an expense under a category that does not exist inside your database**. 
+> Before creating your first expense entry via the API, execute this seed statement inside your database terminal/tool (e.g., pgAdmin) to build a matching relational record:
+> ```sql
+> INSERT INTO categories (name) VALUES ('Shopping'), ('Food');
+> 

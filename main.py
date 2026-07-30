@@ -5,8 +5,6 @@ from fastapi import FastAPI, HTTPException, status, Depends
 from database import get_db
 from sqlalchemy.orm import Session
 
-
-
 app = FastAPI(title="Expense Tracker Advanced API")
 
 crud.init_db()
