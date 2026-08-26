@@ -1,7 +1,7 @@
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from datetime import date
-import models.expense as models
+import app.models.expense as models
 
 def _get_category_or_create(db: Session, category_name: str, owner_id: int):
     cat = db.query(models.Category).filter(

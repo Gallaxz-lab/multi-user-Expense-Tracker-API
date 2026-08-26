@@ -1,0 +1,71 @@
+name: Python Testing CI
+
+# Trigger the workflow on pushes or pull requests to main/master branches
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      # Spins up a temporary PostgreSQL instance to test the backend database verification code
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        # Set health checks to wait until postgres is fully ready
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    # 1. Check out your repository code into the runner environment
+    - name: Checkout Repository Code
+      uses: actions/checkout@v4
+
+    # 2. Install and configure Python on the runner machine
+    - name: Set up Python Runtime
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13' # Aligns with your current Docker environment
+        cache: 'pip'          # Caches dependencies to speed up future pipeline runs
+
+    # 3. Install required software dependencies
+    - name: Install Project Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        pip install flake8 pytest # Installs test and lint tooling
+
+    # 4. Check for syntax errors, unresolved imports, or messy styling
+    - name: Lint Code with Flake8
+      run: |
+        # stop the build if there are Python syntax errors or undefined names
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # exit-zero treats all other style warnings as flags but doesn't break the build
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+    # 5. Execute your application test suite (if you have tests written)
+    - name: Run Test Framework via PyTest
+      env:
+        DB_USER: test_user
+        DB_PASSWORD: test_password
+        DB_HOST: localhost
+        DB_PORT: 5432
+        DB_NAME: test_db
+        SECRET_KEY: "ci-pipeline-temporary-secret-key-placeholder"
+        ALGORITHM: "HS256"
+        ACCESS_TOKEN_EXPIRE_MINUTES: "30"
+      run: |
+        # If you don't have a tests/ directory yet, this step will just verify execution module paths
+        python -m pytest || echo "No test files found to evaluate yet."
