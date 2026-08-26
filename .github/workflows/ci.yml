@@ -56,7 +56,7 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
     # 5. Execute your application test suite (if you have tests written)
-    - name: Run Test Framework via PyTest
+    - name: Execute tests with pytest
       env:
         DB_USER: test_user
         DB_PASSWORD: test_password
@@ -66,6 +66,6 @@ jobs:
         SECRET_KEY: "ci-pipeline-temporary-secret-key-placeholder"
         ALGORITHM: "HS256"
         ACCESS_TOKEN_EXPIRE_MINUTES: "30"
+      # CHANGE THIS LINE TO INCLUDE MODULE TARGETING
       run: |
-        # If you don't have a tests/ directory yet, this step will just verify execution module paths
-        python -m pytest || echo "No test files found to evaluate yet."
+        python -m pytest tests/
