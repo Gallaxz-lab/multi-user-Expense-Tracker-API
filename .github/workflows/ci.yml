@@ -55,22 +55,7 @@ jobs:
         # exit-zero treats all other style warnings as flags but doesn't break the build
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
-    # 4. Execute your application test suite (if you have tests written)
-    - name: Execute tests with pytest
-      env:
-        DB_USER: test_user
-        DB_PASSWORD: test_password
-        DB_HOST: localhost
-        DB_PORT: 5432
-        DB_NAME: test_db
-        SECRET_KEY: "ci-pipeline-temporary-secret-key-placeholder"
-        ALGORITHM: "HS256"
-        ACCESS_TOKEN_EXPIRE_MINUTES: "30"
-      # CHANGE THIS LINE TO INCLUDE MODULE TARGETING
-      run: |
-        python -m pytest tests/
-
-     # 5: Run the actual automated tests
+     # 4: Run the actual automated tests
     - name: Run Test Framework via PyTest
       env:
         DB_USER: test_user
