@@ -10,6 +10,8 @@ WORKDIR /workspace
 # Copy everything from your local directory into the container
 COPY . .
 
+EXPOSE 8000
+
 # Run uvicorn pointing to the app module
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
 

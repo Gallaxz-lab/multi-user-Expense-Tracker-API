@@ -55,7 +55,6 @@ def build_markdown_readme():
     
     readme_template = f"""# 💰 Multi-User Expense Tracker API
 
-A production-ready asynchronous REST API framework engineered with FastAPI, PostgreSQL, SQLAlchemy, and Docker.
 
 ---
 

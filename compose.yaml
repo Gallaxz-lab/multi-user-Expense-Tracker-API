@@ -18,12 +18,12 @@ services:
       timeout: 3s
       retries: 5
 
-  # --- FastAPI App ---
+   # --- FastAPI App ---
   web:
     build: .
     container_name: expense_fastapi_app
     ports:
-      - "8000:8000"
+      - "8000:8000" # Maps local port 8000 on your computer to container port 8000
     environment:
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
@@ -33,6 +33,10 @@ services:
       SECRET_KEY: ${SECRET_KEY}
       ALGORITHM: ${ALGORITHM}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES}
+      # OPTIONAL: Explicitly specify a local override here if desired
+      PORT: 8000 
+    volumes:
+      - .:/workspace
     depends_on:
       db:
         condition: service_healthy
