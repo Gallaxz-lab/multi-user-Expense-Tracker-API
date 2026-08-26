@@ -5,8 +5,8 @@ A production-ready, highly optimized asynchronous REST API engine engineered wit
 This system features complete cryptographic user isolation (JWT architecture), containerized service orchestrations, and automated deployment checks.
 
 ## 🔗 Live Production Access
-* **Interactive API Playground:** [Swagger UI Docs Docs](https://onrender.com)
-* **Live System Health Metrics Check:** [Operational Infrastructure Ping](https://multi-user-expense-tracker-api.onrender.com)
+* **Interactive API Playground:** [Swagger UI Docs Docs](https://multi-user-expense-tracker-api.onrender.com/docs)
+* **Live System Health Metrics Check:** [Operational Infrastructure Ping](https://multi-user-expense-tracker-api.onrender.com/health)
 
 
 ## ⚡ Key Architectural Highlights
