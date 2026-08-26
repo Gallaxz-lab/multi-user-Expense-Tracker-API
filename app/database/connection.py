@@ -20,7 +20,7 @@ try:
         connect_args={"connect_timeout": 5}, 
         echo=False
     )
-    if "pytest" not in sys.modules:
+    if "pytest" not in sys.modules and "generate_readme" not in sys.argv[0]:
         with engine.connect() as connection:
             print("🔌 Database connection verified successfully!")
 except OperationalError as e:

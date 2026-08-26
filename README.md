@@ -1,101 +1,62 @@
-## ⚠️ Caution & Known Limitations
+# 💰 Multi-User Expense Tracker API
 
-> [!WARNING]
-> This project is currently in its initial development phase. Please note the following lack of robust error prevention mechanisms:
+A production-ready asynchronous REST API framework engineered with FastAPI, PostgreSQL, SQLAlchemy, and Docker.
 
+---
 
-# 💰 Expense Tracker API (Enterprise ORM Edition)
+## 🛠️ Automated System Architecture Layout
 
-A professional, production-ready RESTful API for tracking personal expenses, built with **FastAPI** and **SQLAlchemy ORM**, backed by a relational **PostgreSQL** database. 
+Below is the dynamically mapped blueprint of this codebase structure:
 
-This project features a decoupled, scalable architecture separating API routers, database configurations, business logic (CRUD), and data validation schemas.
-
-## 🚀 Features
-
-- **Object-Relational Mapping (ORM)**: Built using native **SQLAlchemy** classes and relationships instead of legacy raw SQL string statements.
-- **Dependency Injection**: Safe session tracking using FastAPI's `Depends` manager to completely prevent database connection memory resource leaks.
-- **Smart Analytics Engine**: Aggregates complex database tracking math metrics (`COUNT`, `SUM`, `AVG`, `MAX`) dynamically using database functions.
-- **Resilient Search Subsystem**: Integrates full case-insensitive partial keyword scanning (`ILIKE`) crossing database description strings and category names natively.
-- **Automatic Structural Migrations**: Auto-evaluates model configurations and constructs tables natively into your active database instance upon startup.
-
-## 🛠️ Prerequisites
-
-Before launching the server, ensure your local environment contains:
-- Python 3.10+
-- Active PostgreSQL Database Socket Server
-
-## 📦 Installation & Setup
-
-1. **Navigate** to your source destination directory:
-   ```bash
-   cd path/to/expense-api
-   ```
-
-2. **Install all required dependencies** compiled inside the system manifest:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Database Configuration**:
-   Open `database.py` and modify the dictionary properties inside the `create_engine` parameters block to align with your personal environment credentials:
-   ```python
-   engine = create_engine(
-       "postgresql+psycopg://",
-       connect_args={
-           "host": "127.0.0.1",
-           "port": "5432",
-           "dbname": "expense_tracker",
-           "user": "postgres",
-           "password": "YOUR_ACTUAL_PASSWORD"
-       },
-       echo=True # Prints generated SQL commands directly to the terminal for easy debugging
-   )
-   ```
-
-## 🏃 Running the Application
-Start the FastAPI server using Uvicorn:
-```bash
-uvicorn main:app --reload
-
-
-## 📑 API Documentation & Testing
-FastAPI automatically generates interactive documentation. Once the server is running, open your browser and navigate to:
-
-👉 **[http://127.0.0] or (http://localhost:8000/docs#/)** (Swagger UI)
-
-
-## 📂 Project Structure
 ```text
-expense-api/
-│
-├── database.py     # Database engine, connection configurations, and session local factories
-├── models.py       # Core SQLAlchemy relational database table blueprints
-├── schemas.py      # Pydantic network data validation and parsing schemas
-├── crud.py         # Business operations logic utilizing pure Python ORM interactions
-├── main.py         # FastAPI application initializing endpoints and web routing controls
-├── requirements.txt# Manifest of system dependencies and external library pins
-└── README.md       # Comprehensive system documentation
+└── multi-user-Expense-Tracker-API/
+    ├── .dockerignore
+    ├── .env
+    ├── .env.example
+    ├── .gitignore
+    ├── Dockerfile
+    ├── compose.debug.yaml
+    ├── compose.yaml
+    ├── requirements.txt
+    └── .github/
+        ├── ci.yml
+        └── workflows/
+    └── app/
+        ├── config.py
+        ├── main.py
+        └── database/
+            ├── connection.py
+        └── models/
+            ├── expense.py
+            ├── user.py
+        └── routers/
+            ├── auth.py
+            ├── expenses.py
+        └── schemas/
+            ├── auth.py
+            ├── expense.py
+        └── services/
+            ├── crud.py
+            ├── security.py
+```
 
+---
 
-## 🛣️ API Endpoints Summary
+## 🚀 Live API Endpoint Inventory
 
-### 1. Expenses Core
-- **`POST /expense`** - Adds a new expense row entry. Generates an `HTTP 201 Created` status code.
-- **`GET /expense`** - Fetches all recorded expenses mapped to their relation strings.
-- **`DELETE /expense`** - Removes a specific expense item evaluating matching parameter contexts safely.
+The system automatically inventory checks and tracks the following live route endpoints:
 
-### 2. Advanced Search & Filtering
-- **`PUT /expenses/{id}`** - Updates an existing record targeted via its primary key URL path variable.
-- **`GET /expenses/category/{category}`** - Returns a subset of expenses filtering explicitly under one singular category string case-insensitively.
-- **`GET /expenses/search?keyword=coffee`** - Scans the database and handles partial matches across descriptions or categories seamlessly.
+| Method | Endpoint | Description | Tags |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/health` | No description provided. | System Infrastructure |
 
-### 3. Analytics Matrix
-- **`GET /expenses/stats`** - Computes high-level overview metrics tracking entry counts, totals, averages, and your highest singular recorded asset description.
+---
 
+## 🐳 Containerized Quick Start
 
-> [!IMPORTANT]
-> Because this system employs a strict relational Foreign Key block design, **you cannot save an expense under a category that does not exist inside your database**. 
-> Before creating your first expense entry via the API, execute this seed statement inside your database terminal/tool (e.g., pgAdmin) to build a matching relational record:
-> ```sql
-> INSERT INTO categories (name) VALUES ('Shopping'), ('Food');
-> 
+1. Ensure you have configured your environment credentials inside your local `.env` file.
+2. Build and initialize your container network ecosystem using Docker Compose:
+   ```bash
+   docker compose -f compose.yaml up --build
+   ```
+3. Once running, access your automated API documentation sandbox directly at: **http://localhost:8000/docs**
