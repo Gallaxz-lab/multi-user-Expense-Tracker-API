@@ -1,12 +1,26 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List
+from datetime import date
 
 from app.database.connection import get_db
 import app.schemas.expense as schemas_exp
 import app.services.crud as crud
 from app.routers.auth import get_current_user
 import app.models.user as models_user
+
+from google import genai
+from google.genai import types
+from pydantic import BaseModel, Field
+from app.config import settings
+
+
+ai_client = genai.Client(api_key=settings.GEMINI_API_KEY)
+
+class AIExtractedExpense(BaseModel):
+    category: str = Field(description="The financial category matching the item like Food, Transport, Utilities, Entertainment, or Miscellaneous.")
+    description: str = Field(description="A concise summary of what the money was spent on.")
+    amount: float = Field(description="The numerical cost value extracted from the text string statement.")
 
 router = APIRouter(prefix="/expenses", tags=["Expenses"])
 
@@ -61,3 +75,52 @@ def api_search_expenses(keyword: str, db: Session = Depends(get_db), current_use
     records = crud.search_expenses(db, keyword, current_user.id)
     mapped = [schemas_exp.ExpenseResponse(id=r.id, category=r.category_rel.name, description=r.description, amount=r.amount, date=r.date) for r in records]
     return schemas_exp.StandardResponse(message="Search parameters processed", data=mapped)
+
+@router.post("/ai-add", response_model=schemas_exp.StandardResponse[schemas_exp.ExpenseResponse])
+def api_ai_add_expense(
+    prompt: str, 
+    db: Session = Depends(get_db), 
+    current_user: models_user.User = Depends(get_current_user)
+):
+    try:
+        response = ai_client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=f"Extract the expense metadata fields out of this user narrative statement: '{prompt}'",
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=AIExtractedExpense,
+                temperature=0.1
+            ),
+        )
+        extracted_data = AIExtractedExpense.model_validate_json(response.text)
+
+    except Exception as ai_err:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"The AI operational processing agent failed to parse text attributes: {str(ai_err)}"
+        )
+
+    try:
+        res = crud.add_expense(
+            db, 
+            category=extracted_data.category, 
+            description=extracted_data.description, 
+            amount=extracted_data.amount, 
+            expense_date=date.today(), 
+            owner_id=current_user.id
+        )
+
+        mapped = schemas_exp.ExpenseResponse(
+            id=res["data"].id, 
+            category=extracted_data.category, 
+            description=res["data"].description, 
+            amount=res["data"].amount, 
+            date=res["data"].date
+        )
+        return schemas_exp.StandardResponse(message="AI verified and recorded entry successfully", data=mapped)
+
+    except Exception as db_err:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"AI data extraction was successful, but database insertion failed: {str(db_err)}"
+        )

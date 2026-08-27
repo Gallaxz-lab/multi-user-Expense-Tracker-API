@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     ALGORITHM: str = Field(default="HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=60)
     
+    GEMINI_API_KEY: str
+    
     # Computed Dynamic Connection Properties
     @property
     def DATABASE_URL(self) -> str:
