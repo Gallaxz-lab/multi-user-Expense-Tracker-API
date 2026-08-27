@@ -84,7 +84,7 @@ def api_ai_add_expense(
 ):
     try:
         response = ai_client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-3.6-flash',
             contents=f"Extract the expense metadata fields out of this user narrative statement: '{prompt}'",
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",

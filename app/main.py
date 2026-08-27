@@ -7,6 +7,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.routers import auth, expenses
 
+from app.database.connection import engine
+import app.models.user as models_user
+import app.models.expense as models_expense
+
+models_user.Base.metadata.create_all(bind=engine)
+
 # --- Basic Stream Logging Setup ---
 logging.basicConfig(
     level=logging.INFO,
