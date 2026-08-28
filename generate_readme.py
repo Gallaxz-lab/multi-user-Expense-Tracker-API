@@ -32,7 +32,7 @@ A production-ready, highly optimized asynchronous REST API engine engineered wit
 This system features complete cryptographic user data isolation (JWT architecture), containerized service orchestrations, real-time natural language query parsing, and automated deployment checks.
 
 ## 🔗 Production Quick Links
-* 🚀 **Interactive API Playground:** [Live Swagger UI Docs](https://multi-user-expense-tracker-api.onrender.com/docs)
+* 🚀 **Interactive API Playground:** [Live Swagger UI Docs](https://multi-user-expense-tracker-api.odnrender.com/docs)
 * 🩺 **System Infrastructure Status:** [Live Health Check Endpoint](https://multi-user-expense-tracker-api.onrender.com/health)
 
 ---
