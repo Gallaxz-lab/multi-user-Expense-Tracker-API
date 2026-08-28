@@ -81,7 +81,7 @@ def api_search_expenses(keyword: str, db: Session = Depends(get_db), current_use
     mapped = [schemas_exp.ExpenseResponse(id=r.id, category=r.category_rel.name, description=r.description, amount=r.amount, date=r.date) for r in records]
     return schemas_exp.StandardResponse(message="Search parameters processed", data=mapped)
 
-@router.post("/ai-add", response_model=StandardResponse[ExpenseResponse])
+@router.post("/ai-add", response_model=schemas_exp.StandardResponse[schemas_exp.ExpenseResponse])
 def api_ai_hardened_add_expense(
     prompt: str, 
     db: Session = Depends(get_db), 
@@ -149,14 +149,14 @@ def api_ai_hardened_add_expense(
             owner_id=current_user.id
         )
         
-        mapped = ExpenseResponse(
+        mapped = schemas_exp.ExpenseResponse(
             id=res["data"].id, 
             category=validated_ai_data.category.value, 
             description=res["data"].description, 
             amount=validated_ai_data.amount, 
             date=res["data"].date
         )
-        return StandardResponse(message="AI validated and secured entry successfully recorded", data=mapped)
+        return schemas_exp.StandardResponse(message="AI validated and secured entry successfully recorded", data=mapped)
         
     except Exception as db_err:
         raise HTTPException(
