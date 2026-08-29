@@ -31,7 +31,7 @@ class UnifiedSearchResponse(BaseModel):
     source: str
     data: UnifiedSearchItem
 
-router.get("", response_model=schemas_exp.StandardResponse[List[schemas_exp.UnifiedSearchResponse]])
+@router.get("", response_model=schemas_exp.StandardResponse[List[schemas_exp.UnifiedSearchResponse]])
 def api_hybrid_semantic_search(
     query: str = Query(..., min_length=2, description="Natural sentence query targeting docs or finances."),
     limit: int = Query(3, ge=1, le=10),
