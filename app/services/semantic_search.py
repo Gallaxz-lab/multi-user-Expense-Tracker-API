@@ -56,7 +56,7 @@ def get_embedding(text: str) -> np.ndarray:
     try:
         # Utilizing modern text-embedding-004 standard for improved text discrimination
         response = ai_client.models.embed_content(
-            model="text-embedding-004", 
+            model="gemini-embedding-001", 
             contents=cleaned_text
         )
         return np.array(response.embeddings[0].values, dtype=np.float32)
