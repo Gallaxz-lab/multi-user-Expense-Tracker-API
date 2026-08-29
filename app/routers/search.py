@@ -21,11 +21,11 @@ ai_client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
 class UnifiedSearchItem(BaseModel):
     id: int
-    text: str
-    category: str
+    category: str 
     last_updated: str
     extracted_answer: Optional[str] = None
-
+    text: str
+    
 class UnifiedSearchResponse(BaseModel):
     score: float
     source: str
