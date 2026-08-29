@@ -65,3 +65,10 @@ class ExpenseStatsData(BaseModel):
     total_amount: float
     average_amount: float
     highest_expense: Optional[dict] = None
+    
+class UnifiedSearchItem(BaseModel):
+    id: int
+    text: str
+    category: str
+    last_updated: str
+    extracted_answer: Optional[str] = None

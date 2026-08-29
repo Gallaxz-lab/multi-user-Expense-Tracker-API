@@ -48,6 +48,7 @@ Below is the verified blueprint of this codebase structure:
         └── routers/
             ├── auth.py
             ├── expenses.py
+            ├── search.py
         └── schemas/
             ├── auth.py
             ├── expense.py
@@ -55,6 +56,13 @@ Below is the verified blueprint of this codebase structure:
             ├── crud.py
             ├── security.py
             ├── semantic_search.py
+    └── knowledge_docs/
+        ├── building_safety.txt
+        ├── employee_handbook.txt
+        ├── expense_guidelines.txt
+        ├── it_support.txt
+        ├── software_docs.txt
+        ├── software_license.txt
 ```
 
 ---

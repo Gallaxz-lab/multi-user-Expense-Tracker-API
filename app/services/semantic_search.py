@@ -1,6 +1,6 @@
+import os
 import numpy as np
 from google import genai
-from pydantic import BaseModel
 from typing import List, Dict, Any
 
 from app.config import settings
@@ -8,59 +8,89 @@ from app.config import settings
 # Initialize the official Google GenAI client
 ai_client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
-# 1. Concrete Knowledge base data collection (The stored documents with metadata)
-DOCUMENT_KNOWLEDGE_BASE = [
-    {
-        "id": 1,
-        "text": "Employees must submit vacation requests through the HR portal at least two weeks before their planned departure date.",
-        "category": "HR Policy",
-        "last_updated": "2026-01-15"
-    },
-    {
-        "id": 2,
-        "text": "All medical reimbursement claims require an attached digitized receipt and must be submitted within 30 days of the clinic visit.",
-        "category": "Finance",
-        "last_updated": "2026-03-10"
-    },
-    {
-        "id": 3,
-        "text": "To reset your corporate password, navigate to security settings, select multi-factor authentications, and trigger the recovery token.",
-        "category": "IT Support",
-        "last_updated": "2026-05-22"
-    },
-    {
-        "id": 4,
-        "text": "The corporate expenditure tracker application allows users to safely catalog transactional categories, amounts, and dates.",
-        "category": "Software Docs",
-        "last_updated": "2026-08-25"
-    }
-]
+# Map filenames directly to their high-level topic categories
+TOPIC_MAP = {
+    "employee_handbook.txt": "HR Policy",
+    "expense_guidelines.txt": "Finance",
+    "building_safety.txt": "Facilities",
+    "it_support.txt": "IT Support",
+    "software_license.txt": "Legal",
+}
 
-# 2. Local In-Memory Vector Storage Cache
-# In a massive app, this is swapped for a database like Pinecone or pgvector, but local array memory is fastest for core mechanics
+def load_knowledge_base_from_disk() -> List[Dict[str, Any]]:
+    """Dynamically parses local text assets into structural context maps."""
+    knowledge_collection = []
+    
+    # Path inside Docker workspace (/workspace/knowledge_docs)
+    docs_folder = os.path.join(os.getcwd(), "knowledge_docs")
+    
+    # Fallback to local hardcoded values if the directory is missing (safeguard)
+    if not os.path.exists(docs_folder):
+        print("⚠️ Warning: knowledge_docs folder not found on disk. Initializing empty.")
+        return []
+        
+    doc_id = -1
+    for file_name in sorted(os.listdir(docs_folder)):
+        if file_name.endswith(".txt"):
+            file_path = os.path.join(docs_folder, file_name)
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read().strip()
+                
+            knowledge_collection.append({
+                "id": doc_id,
+                "text": content,
+                "category": TOPIC_MAP.get(file_name, "General Documentation"),
+                "last_updated": file_name # Using filename as provenance source data tracking
+            })
+            doc_id -= 1 # Keep IDs negative to stay clear of database entries
+            
+    print(f"📊 Successfully loaded {len(knowledge_collection)} knowledge files from disk.")
+    return knowledge_collection
+
+# Initialize dynamic loading mapping out data parameters
+DOCUMENT_KNOWLEDGE_BASE = load_knowledge_base_from_disk()
 CACHED_DOCUMENT_EMBEDDINGS: List[np.ndarray] = []
 
 def get_embedding(text: str) -> np.ndarray:
-    """Invokes Google Gemini to generate high-density semantic vector coordinates for text."""
+    cleaned_text = text.strip() if text else "Empty text block placeholder node"
     try:
         response = ai_client.models.embed_content(
-            model="text-embedding-004",  # Google's premier text embedding vector model tier
-            contents=text
+            model="gemini-embedding-001",
+            contents=cleaned_text
         )
-        # Extract the flat numerical array list and cast it as a high-speed numpy float vector
         return np.array(response.embeddings[0].values, dtype=np.float32)
     except Exception as e:
         raise RuntimeError(f"Gemini embedding calculation layer failed: {str(e)}")
 
 def initialize_vector_cache():
-    """Generates and caches embeddings for the entire document collection at app boot time."""
-    global CACHED_DOCUMENT_EMBEDDINGS
-    if not CACHED_DOCUMENT_EMBEDDINGS:
-        print("⏳ Generating vector index array mappings for knowledge base documents...")
+    """Generates and caches embeddings for the dynamic collection at app boot time."""
+    global CACHED_DOCUMENT_EMBEDDINGS, DOCUMENT_KNOWLEDGE_BASE
+    
+    # If the app booted empty, try re-reading disk (useful for docker mounts)
+    if not DOCUMENT_KNOWLEDGE_BASE:
+        DOCUMENT_KNOWLEDGE_BASE = load_knowledge_base_from_disk()
+        
+    if not CACHED_DOCUMENT_EMBEDDINGS and DOCUMENT_KNOWLEDGE_BASE:
+        print("⏳ Generating vector index array mappings for disk documentation...")
+        validated_docs = []
+        
         for doc in DOCUMENT_KNOWLEDGE_BASE:
-            vector = get_embedding(doc["text"])
-            CACHED_DOCUMENT_EMBEDDINGS.append(vector)
-        print(f"✅ Vector index mapping complete. Cached {len(CACHED_DOCUMENT_EMBEDDINGS)} items.")
+            # 3. Defensive Skip Check: Ignore empty lines or malformed files trying to compromise vector generation
+            if not doc["text"].strip():
+                print(f"⚠️ Skipping vector compilation for file ID {doc['id']} ({doc['last_updated']}): File contains no extractable text characters.")
+                continue
+                
+            try:
+                vector = get_embedding(doc["text"])
+                CACHED_DOCUMENT_EMBEDDINGS.append(vector)
+                validated_docs.append(doc)
+            except Exception as loop_err:
+                print(f"❌ Failed to calculate vector array node for text asset: {str(loop_err)}")
+                continue
+        
+        # Override data index list to include only successfully calculated text nodes
+        DOCUMENT_KNOWLEDGE_BASE = validated_docs
+        print(f"✅ Vector cache initialized. Indexed {len(CACHED_DOCUMENT_EMBEDDINGS)} items successfully.")
 
 def cosine_similarity(v1: np.ndarray, v2: np.ndarray) -> float:
     """Calculates the angular closeness of two text embeddings via vector geometry."""
@@ -71,23 +101,38 @@ def cosine_similarity(v1: np.ndarray, v2: np.ndarray) -> float:
         return 0.0
     return float(dot_product / (norm_v1 * norm_v2))
 
-def search_knowledge_base(query: str, top_k: int = 2) -> List[Dict[str, Any]]:
-    """Converts a user search query into vector space and returns the closest data matches."""
-    # Ensure our vector storage is populated
+def search_unified_knowledge(query: str, db_expenses: List[Any], top_k: int = 3) -> List[Dict[str, Any]]:
+    """Merges static document caching indexes with real-time vector conversions of active user data profiles."""
     initialize_vector_cache()
     
-    # Calculate coordinate vector for the user query string
     query_vector = get_embedding(query)
-    
     scored_results = []
-    # Loop and cross-examine the similarity score of every stored document
+    
+    # ---- PIPELINE PHASE A: Evaluate File-Based Ingested Documentation ----
     for idx, doc_vector in enumerate(CACHED_DOCUMENT_EMBEDDINGS):
         score = cosine_similarity(query_vector, doc_vector)
         scored_results.append({
             "score": round(score, 4),
-            "document": DOCUMENT_KNOWLEDGE_BASE[idx]
+            "source": "System Documentation",
+            "data": DOCUMENT_KNOWLEDGE_BASE[idx]
         })
         
-    # Sort results by closest match score descending and limit output to top_k matching elements
+    # ---- PIPELINE PHASE B: Evaluate Real-Time Dynamic SQL Database Records ----
+    for expense in db_expenses:
+        expense_text = f"Expense description: {expense.description}. Cost: {expense.amount} dollars. Categorized under: {expense.category_rel.name}."
+        expense_vector = get_embedding(expense_text)
+        score = cosine_similarity(query_vector, expense_vector)
+        
+        scored_results.append({
+            "score": round(score, 4),
+            "source": "User Financial Record",
+            "data": {
+                "id": expense.id,
+                "text": f"Spent ${expense.amount} on '{expense.description}'",
+                "category": expense.category_rel.name,
+                "last_updated": str(expense.date)
+            }
+        })
+        
     scored_results.sort(key=lambda x: x["score"], reverse=True)
     return scored_results[:top_k]

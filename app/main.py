@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # Internal domain namespace alignment imports
 from app.config import settings
-from app.routers import auth, expenses
+from app.routers import auth, expenses, search
 
 from app.database.connection import engine, Base
 from app.models.user import User
@@ -57,3 +57,4 @@ async def health_check():
 # Register Sub-Domain Architecture Router Modules
 app.include_router(auth.router)
 app.include_router(expenses.router)
+app.include_router(search.router)

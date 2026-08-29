@@ -1,0 +1,7 @@
+Software Licensing Agreements and Corporate Legal Compliance
+
+1. Software Installation Rules: Employees are prohibited from installing unauthorized or pirated software on company-issued laptops and desktop assets.
+2. Corporate License Inventory: All production software must be procured through the Legal and Procurement team to ensure compliance with enterprise end-user license agreements (EULA).
+3. Open Source Software (OSS): Utilizing open-source libraries in proprietary commercial code requires formal review and written approval from the Legal IP compliance board.
+4. Software Audits: The company conducts periodic automated audits to verify software compliance. Unlicensed applications found on devices will be automatically uninstalled.
+5. Intellectual Property Rights: All source code, designs, documentation, and technical systems developed during employment remain the sole intellectual property of the organization.

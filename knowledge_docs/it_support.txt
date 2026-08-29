@@ -1,0 +1,7 @@
+IT Support Services and Technical Assistance Procedures
+
+1. Helpdesk Ticket Submission: For all hardware, software, or network connectivity technical difficulties, submit a ticket via email to support@company.com or the IT internal Web Portal.
+2. Password Policy: Passwords must be at least 12 characters long, containing uppercase letters, numbers, and symbols. Credentials must be changed every 90 days.
+3. Multi-Factor Authentication (MFA): MFA setup is mandatory for accessing corporate email, virtual private networks (VPN), and cloud databases from any device.
+4. Phishing Alerts: Do not click on suspicious links or download unverified email attachments. Report potential phishing attempts using the 'Report Phish' Outlook button.
+5. System Maintenance: Routine server upgrades and network maintenance take place every Saturday from 12:00 AM to 4:00 AM. Systems may experience intermittent downtime.
