@@ -86,10 +86,10 @@ def api_hybrid_semantic_search(
                 "source": item["source"],
                 "data": {
                     "id": item["data"]["id"],
-                    "text": full_document_text, # Keeps the full text available as raw backup
                     "category": item["data"]["category"],
                     "last_updated": item["data"]["last_updated"],
-                    "extracted_answer": clean_snippet # Contains ONLY what the user asked for!
+                    "extracted_answer": clean_snippet, # Contains ONLY what the user asked for!
+                    "text": full_document_text, # Keeps the full text available as raw backup
                 }
             })
             

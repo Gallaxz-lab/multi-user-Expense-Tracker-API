@@ -64,7 +64,7 @@ def get_embedding(text: str) -> np.ndarray:
 
 def initialize_vector_cache():
     """Generates and caches embeddings for the dynamic collection at app boot time."""
-    global CACHED_DOCUMENT_EMBEDDINGS, DOCUMENT_KNOWLEDGE_BASE
+    global DOCUMENT_KNOWLEDGE_BASE
     
     # If the app booted empty, try re-reading disk (useful for docker mounts)
     if not DOCUMENT_KNOWLEDGE_BASE:
