@@ -47,12 +47,18 @@ def api_hybrid_semantic_search(
         
         processed_results = []
         for item in raw_results:
-            # If the result is a raw database record, it's already short and precise
+            # ---- BLOCK A: For User Financial Database Records ----
             if item["source"] == "User Financial Record":
                 processed_results.append({
                     "score": item["score"],
                     "source": item["source"],
-                    "data": {**item["data"], "extracted_answer": item["data"]["text"]}
+                    "data": {
+                        "id": item["data"]["id"],
+                        "category": item["data"]["category"],
+                        "last_updated": item["data"]["last_updated"],
+                        "extracted_answer": item["data"]["text"], # Sets extracted_answer right before text
+                        "text": item["data"]["text"]
+                    }
                 })
                 continue
                 
