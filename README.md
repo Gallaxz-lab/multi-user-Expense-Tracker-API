@@ -61,7 +61,6 @@ Below is the verified blueprint of this codebase structure:
         ├── employee_handbook.txt
         ├── expense_guidelines.txt
         ├── it_support.txt
-        ├── software_docs.txt
         ├── software_license.txt
 ```
 
