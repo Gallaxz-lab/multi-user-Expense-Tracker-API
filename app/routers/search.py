@@ -39,7 +39,7 @@ async def extract_document_context(query: str, doc_text: str) -> str:
     try:
         # Using systemic boundaries protects the engine from database text overrides
         response = await ai_client.models.generate_content_async(
-            model='gemini-2.5-flash', # Updated to production standard stable flash model
+            model='gemini-2.5-flash', 
             contents=prompt_context,
             config=types.GenerateContentConfig(
                 temperature=0.0,
@@ -50,9 +50,17 @@ async def extract_document_context(query: str, doc_text: str) -> str:
                 )
             )
         )
-        return response.text.strip()
+        answer = response.text.strip()
+        
+        if not answer:
+            return doc_text if len(doc_text) <= 120 else doc_text[:120].strip() + "..."
+        return answer
+        
     except Exception:
-        return doc_text[:120] + "..."
+        # FIX 2: Added smart formatting fallback to prevent arbitrary ellipses on short titles/headers
+        if len(doc_text) <= 120:
+            return doc_text
+        return doc_text[:120].strip() + "..."
 
 @router.get("", response_model=schemas_exp.StandardResponse[List[UnifiedSearchResponse]])
 async def api_hybrid_semantic_search( # Changed to async def to handle non-blocking IO loops
