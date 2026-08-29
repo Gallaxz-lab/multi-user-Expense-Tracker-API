@@ -17,12 +17,16 @@ TOPIC_MAP = {
 }
 
 def load_knowledge_base_from_disk() -> List[Dict[str, Any]]:
-    """Parses local text assets into structural chunked context maps."""
+    """Parses local text assets into highly granular sentence level chunks."""
     knowledge_collection = []
-    docs_folder = os.path.join(os.getcwd(), "knowledge_docs")
+    
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    app_dir = os.path.dirname(current_dir)
+    root_dir = os.path.dirname(app_dir)
+    docs_folder = os.path.join(root_dir, "knowledge_docs")
     
     if not os.path.exists(docs_folder):
-        print("⚠️ Warning: knowledge_docs folder not found on disk.")
+        print(f"⚠️ Warning: knowledge_docs folder not found at: {docs_folder}")
         return []
         
     doc_id = -1
@@ -31,21 +35,20 @@ def load_knowledge_base_from_disk() -> List[Dict[str, Any]]:
             file_path = os.path.join(docs_folder, file_name)
             with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read().strip()
-            
-            # FIX 1: Split large files by double newlines into logical paragraph chunks
-            # This prevents dense documents from diluting specific terms like "refund"
-            chunks = [c.strip() for c in content.split("\n\n") if c.strip()]
+ 
+            raw_lines = content.split("\n")
+            chunks = [line.strip() for line in raw_lines if line.strip()]
             
             for chunk_idx, chunk in enumerate(chunks):
                 knowledge_collection.append({
                     "id": doc_id,
-                    "text": chunk,
+                    "text": chunk, # Now contains exactly ONE rule (e.g., just the meal allowance line)
                     "category": TOPIC_MAP.get(file_name, "General Documentation"),
                     "last_updated": f"{file_name}#chunk{chunk_idx}"
                 })
                 doc_id -= 1
             
-    print(f"📊 Loaded {len(knowledge_collection)} distinct text chunks from disk.")
+    print(f"📊 Vector Index compilation complete: Generated {len(knowledge_collection)} high-granularity text nodes.")
     return knowledge_collection
 
 DOCUMENT_KNOWLEDGE_BASE = load_knowledge_base_from_disk()
