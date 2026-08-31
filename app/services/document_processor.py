@@ -1,56 +1,46 @@
 import os
-import re
+import io
+from pypdf import PdfReader
 from typing import List, Dict, Any
 
-TOPIC_MAP = {
-    "employee_handbook.txt": "HR Policy",
-    "expense_guidelines.txt": "Finance",
-    "building_safety.txt": "Facilities",
-    "it_support.txt": "IT Support",
-    "software_license.txt": "Legal",
-}
+def chunk_text_by_words(text: str, chunk_size: int = 150, overlap: int = 30) -> List[str]:
+    """Splits text by words using a sliding window for higher granularity than lines."""
+    words = text.split()
+    chunks = []
+    for i in range(0, len(words), chunk_size - overlap):
+        chunk_words = words[i:i + chunk_size]
+        if not chunk_words:
+            continue
+        chunks.append(" ".join(chunk_words))
+    return chunks
 
-def load_and_chunk_documents() -> List[Dict[str, Any]]:
-    """[DOCUMENT -> EXTRACT -> CHUNK] Parses local text assets into overlapping text chunks."""
-    knowledge_collection = []
+def extract_and_chunk_pdf(file_bytes: bytes, filename: str) -> List[Dict[str, Any]]:
+    """[PDF UPLOAD -> EXTRACT -> BETTER CHUNKING] Extracts pages and tracks metadata."""
+    chunks_collection = []
+    pdf_file = io.BytesIO(file_bytes)
+    reader = PdfReader(pdf_file)
     
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    root_dir = os.path.dirname(os.path.dirname(current_dir))
-    docs_folder = os.path.join(root_dir, "knowledge_docs")
-    
-    if not os.path.exists(docs_folder):
-        print(f"⚠️ Warning: knowledge_docs folder not found at: {docs_folder}")
-        return []
+    global_chunk_idx = 0
+    for page_idx, page in enumerate(reader.pages):
+        page_num = page_idx + 1
+        page_text = page.extract_text()
+        if not page_text or not page_text.strip():
+            continue
+            
+        # Better semantic chunking via word sliding window per page
+        page_chunks = chunk_text_by_words(page_text, chunk_size=120, overlap=25)
         
-    doc_id = -1
-    for file_name in sorted(os.listdir(docs_folder)):
-        if file_name.endswith(".txt"):
-            file_path = os.path.join(docs_folder, file_name)
-            with open(file_path, "r", encoding="utf-8") as f:
-                content = f.read().strip()
- 
-            # Smart Sentence/Line Chunking
-            raw_lines = content.split("\n")
-            lines = [line.strip() for line in raw_lines if line.strip()]
+        for chunk_text in page_chunks:
+            chunks_collection.append({
+                "id": f"{filename}#c{global_chunk_idx}",
+                "text": chunk_text,
+                "category": "Uploaded PDF Documentation",
+                "metadata": {
+                    "document_name": filename,
+                    "page_number": page_num,
+                    "chunk_id": global_chunk_idx
+                }
+            })
+            global_chunk_idx += 1
             
-            # Group lines into chunks with sliding overlap so context isn't lost
-            chunk_size = 2  # merge 2 lines together
-            overlap = 1    # overlap by 1 line
-            
-            for i in range(0, len(lines), chunk_size - overlap):
-                chunk_lines = lines[i:i + chunk_size]
-                chunk_text = " ".join(chunk_lines)
-                if not chunk_text:
-                    continue
-                    
-                knowledge_collection.append({
-                    "id": doc_id,
-                    "text": chunk_text,
-                    "category": TOPIC_MAP.get(file_name, "General Documentation"),
-                    "source_file": file_name,
-                    "last_updated": f"{file_name}#chunk_{i}"
-                })
-                doc_id -= 1
-            
-    print(f"📊 Extraction Complete: Generated {len(knowledge_collection)} overlapping text nodes.")
-    return knowledge_collection
+    return chunks_collection
