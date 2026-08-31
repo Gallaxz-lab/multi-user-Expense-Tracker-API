@@ -15,7 +15,7 @@ def get_embedding(text: str) -> np.ndarray:
             model="gemini-embedding-001", 
             contents=text.strip() if text else "Empty placeholder"
         )
-        return np.array(response.embeddings.values, dtype=np.float32)
+        return np.array(response.embeddings[0].values, dtype=np.float32)
     except Exception as e:
         raise RuntimeError(f"Embedding failed: {str(e)}")
 
