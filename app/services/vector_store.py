@@ -25,7 +25,7 @@ def get_embedding(text: str) -> np.ndarray:
             model="gemini-embedding-001", 
             contents=cleaned_text
         )
-        return np.array(response.embeddings.values, dtype=np.float32)
+        return np.array(response.embeddings[0].values, dtype=np.float32)
     except Exception as e:
         raise RuntimeError(f"Gemini embedding extraction layer failed: {str(e)}")
 
