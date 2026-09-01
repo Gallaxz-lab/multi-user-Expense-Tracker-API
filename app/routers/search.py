@@ -7,9 +7,9 @@ from app.routers.auth import get_current_user
 import app.models.user as models_user
 from app.models.expense import Expense
 
-from app.services.document_processor import extract_and_chunk_pdf, DocumentProcessorService, SIMULATED_PDF_CHUNKS
-from app.services.rag_engine import run_pdf_assistant_pipeline
-from app.services.vector_store import add_chunks_to_vector_store, query_vector_store
+from app.services.document_processor import extract_and_chunk_pdf
+from app.services.vector_store import add_uploaded_pdf_to_real_indices, run_real_semantic_search, run_real_keyword_search
+from app.services.rag_engine import run_pdf_assistant_pipeline, run_real_hybrid_fusion, run_production_reranker
 
 
 router = APIRouter(prefix="/search", tags=["Hybrid RAG & PDF Assistant"])
@@ -18,89 +18,61 @@ router = APIRouter(prefix="/search", tags=["Hybrid RAG & PDF Assistant"])
 # ENDPOINT 1: UPLOAD AND PROCESS PDF 
 # =====================================================================
 @router.post("/upload-pdf")
-async def upload_and_process_pdf_file(
-    file: UploadFile = File(...),
-    current_user: models_user.User = Depends(get_current_user)
-):
-    """Uploads a PDF file, slices it into semantic chunks, and stores its embeddings."""
+async def upload_real_pdf_document(file: UploadFile = File(...)):
+    """Uploads real files, extracts pages, and loads true BM25 and Vector indices."""
     if not file.filename.endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Only standard .pdf files are accepted.")
+        raise HTTPException(status_code=400, detail="Only standard PDF files allowed.")
     try:
-        content_bytes = await file.read()
-        chunks = extract_and_chunk_pdf(content_bytes, file.filename)
-        
+        bytes_data = await file.read()
+        chunks = extract_and_chunk_pdf(bytes_data, file.filename)
         if not chunks:
-            return {"message": "PDF uploaded but no readable text chunks could be extracted."}
+            return {"message": "No indexable content found inside document."}
             
-        add_chunks_to_vector_store(chunks)
-        return {
-            "message": "PDF successfully processed and stored in vector index memory.",
-            "filename": file.filename,
-            "total_chunks_extracted": len(chunks)
-        }
+        add_uploaded_pdf_to_real_indices(chunks)
+        return {"filename": file.filename, "total_indexed_chunks": len(chunks)}
     except Exception as err:
-        raise HTTPException(status_code=500, detail=f"PDF extraction worker failed: {str(err)}")
+        raise HTTPException(status_code=500, detail=str(err))
 
 # =====================================================================
 # ENDPOINT 2: ASK QUESTIONS & INSPECT CHUNKS
 # =====================================================================
+
+
 @router.get("/ask")
-async def ask_questions_about_pdf(
+async def ask_questions_and_receive_citations(
     query: str = Query(..., min_length=2, description="Ask questions about your uploaded PDFs"),
-    top_k: int = Query(4, ge=1, le=10),
-    current_user: models_user.User = Depends(get_current_user)
+    top_k: int = Query(3, ge=1, le=5)
 ) -> Dict[str, Any]:
+    """Queries your document knowledge base and returns a grounded answer with diagnostics."""
     try:
         result = await run_pdf_assistant_pipeline(query=query, top_k=top_k)
         return result
     except Exception as err:
         raise HTTPException(status_code=502, detail=str(err))
-
+    
+    
 # =====================================================================
 # ENDPOINT 3: ASK QUESTIONS & INSPECT CHUNKS
     # =====================================================================
     
     
 @router.get("/compare")
-def compare_simulated_retrieval_approaches(
-    query: str = Query(..., min_length=2, description="Type test terms like 'sleep', 'food', or 'id-9904'")
+async def compare_real_file_retrievals(
+    query: str = Query(..., min_length=2),
+    top_k: int = Query(3, ge=1, le=5)
 ) -> Dict[str, Any]:
-    """Evaluates keyword, semantic, hybrid, and reranking behaviors side-by-side [1]."""
+    """Compares genuine BM25 math and Gemini Vector search profiles side-by-side."""
+    keyword_out = run_real_keyword_search(query, top_k=top_k)
+    semantic_out = run_real_semantic_search(query, top_k=top_k)
+    hybrid_out = run_real_hybrid_fusion(query, limit=top_k)
     
-    keyword_pool = []
-    semantic_pool = []
-    hybrid_pool = []
-    
-    # 1. Execute initial retrieval runs
-    for chunk in SIMULATED_PDF_CHUNKS:
-        k_score = DocumentProcessorService.simulate_keyword_score(query, chunk["text"])
-        s_score = DocumentProcessorService.simulate_semantic_score(query, chunk["text"])
-        
-        # Save independent search lists
-        if k_score > 0:
-            keyword_pool.append({"page": chunk["page"], "score": k_score, "text": chunk["text"]})
-        if s_score > 0.15:
-            semantic_pool.append({"page": chunk["page"], "score": s_score, "text": chunk["text"]})
-            
-        # Hybrid blends primitive matching scores to establish candidate lists
-        hybrid_pool.append({
-            "page": chunk["page"],
-            "combined_base_score": round(k_score + s_score, 2),
-            "text": chunk["text"]
-        })
-        
-    # Sort initial lists by their native weights
-    keyword_pool.sort(key=lambda x: x["score"], reverse=True)
-    semantic_pool.sort(key=lambda x: x["score"], reverse=True)
-    hybrid_pool.sort(key=lambda x: x["combined_base_score"], reverse=True)
-    
-    # 2. Run post-retrieval reranking pipeline on the hybrid candidates list
-    reranked_pool = DocumentProcessorService.simulate_reranker(hybrid_pool)
+    broader_pool = run_real_hybrid_fusion(query, limit=6)
+    reranked_out = await run_production_reranker(query, broader_pool, top_k=top_k)
     
     return {
-        "user_query": query,
-        "keyword_search_output": keyword_pool,
-        "semantic_search_output": semantic_pool,
-        "hybrid_search_output": hybrid_pool,
-        "reranked_search_output": reranked_pool
-        }
+        "evaluation_query": query,
+        "real_keyword_bm25_output": keyword_out,
+        "real_semantic_vector_output": semantic_out,
+        "real_hybrid_fusion_output": hybrid_out,
+        "real_reranked_pipeline_output": reranked_out
+    }
