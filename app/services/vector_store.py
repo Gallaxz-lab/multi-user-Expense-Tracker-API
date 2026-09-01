@@ -28,20 +28,45 @@ def get_embedding(text: str) -> np.ndarray:
     except Exception as e:
         raise RuntimeError(f"Gemini embedding extraction layer failed: {str(e)}")
 
+
 def add_uploaded_pdf_to_real_indices(new_chunks: List[Dict[str, Any]]):
-    """[STORE & INDEX] Caches semantic arrays and builds the live BM25 corpus matrix."""
+    """[STORE & INDEX] Encodes semantic vectors using rate-safe batch operations."""
     global PROD_CHUNKS_DB, PROD_EMBEDDINGS_DB, BM25_ENGINE_INSTANCE
     
-    print(f"⏳ Generating vector arrays for {len(new_chunks)} raw PDF text blocks...")
-    for chunk in new_chunks:
-        vector = get_embedding(chunk["text"])
-        PROD_EMBEDDINGS_DB.append(vector)
-        PROD_CHUNKS_DB.append(chunk)
+    if not new_chunks:
+        return
+    print(f"⏳ Processing {len(new_chunks)} text blocks via batch embedding configurations...")
+    
+    # Gemini safely allows up to 100+ strings per call
+    BATCH_SIZE = 15
+    
+    for i in range(0, len(new_chunks), BATCH_SIZE):
+        batch_slice = new_chunks[i:i + BATCH_SIZE]
+        
+        batch_texts = [chunk["text"].strip() if chunk["text"] else "Empty node placeholder" for chunk in batch_slice]
+
+        try:
+            response = ai_client.models.embed_content(
+                model="gemini-embedding-001", 
+                contents=batch_texts
+            )
+            for idx, embedding_obj in enumerate(response.embeddings):
+                vector_array = np.array(embedding_obj.values, dtype=np.float32)
+                
+                # Append arrays to your active runtime state indices tracking maps
+                PROD_EMBEDDINGS_DB.append(vector_array)
+                PROD_CHUNKS_DB.append(batch_slice[idx])
+                
+        except Exception as batch_err:
+            print(f"❌ Batch indexing process failed at window block slice {i}: {str(batch_err)}")
+            raise RuntimeError(f"Gemini embedding batch layer crashed: {str(batch_err)}")
         
     # Re-build the production BM25 search corpus dynamically across all loaded documents
     tokenized_corpus = [tokenize_text(c["text"]) for c in PROD_CHUNKS_DB]
     BM25_ENGINE_INSTANCE = BM25Okapi(tokenized_corpus)
     print(f"✅ State updated: {len(PROD_CHUNKS_DB)} assets active in memory.")
+
+
 
 def run_real_keyword_search(query: str, top_k: int) -> List[Dict[str, Any]]:
     """[RETRIEVE: KEYWORD] Standard Okapi BM25 text match ranking."""
