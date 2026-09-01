@@ -150,3 +150,14 @@ def run_real_semantic_search(query: str, top_k: int) -> List[Dict[str, Any]]:
         })
     results.sort(key=lambda x: x["score"], reverse=True)
     return results[:top_k]
+
+
+def clear_all_indexed_documents_store():
+    """[RESET ENGINE STORAGE] Wipes the in-memory lists and keyword search indices clean."""
+    global PROD_CHUNKS_DB, PROD_EMBEDDINGS_DB, BM25_ENGINE_INSTANCE
+    
+    PROD_CHUNKS_DB.clear()
+    PROD_EMBEDDINGS_DB.clear()
+    BM25_ENGINE_INSTANCE = None
+    
+    print("🧹 Volatile Vector and BM25 indices have been flushed and reset to factory defaults.")

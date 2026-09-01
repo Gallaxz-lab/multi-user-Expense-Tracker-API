@@ -8,7 +8,7 @@ import app.models.user as models_user
 from app.models.expense import Expense
 
 from app.services.document_processor import extract_and_chunk_pdf
-from app.services.vector_store import add_uploaded_pdf_to_real_indices, run_real_semantic_search, run_real_keyword_search
+from app.services.vector_store import add_uploaded_pdf_to_real_indices, run_real_semantic_search, run_real_keyword_search, clear_all_indexed_documents_store
 from app.services.rag_engine import run_pdf_assistant_pipeline, run_real_hybrid_fusion, run_production_reranker
 
 
@@ -76,3 +76,18 @@ async def compare_real_file_retrievals(
         "real_hybrid_fusion_output": hybrid_out,
         "real_reranked_pipeline_output": reranked_out
     }
+    
+@router.delete("/reset-knowledge-base")
+def reset_pdf_knowledge_base_indices():
+    """[CLEAR PDF ENGINE DATABASE] Manually flushes all uploaded document text chunks and vector embeddings."""
+    try:
+        clear_all_indexed_documents_store()
+        return {
+            "status": "SUCCESS",
+            "message": "All text chunks and vector embeddings have been securely wiped from memory indices."
+        }
+    except Exception as err:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"An error occurred while attempting to wipe knowledge cache layers: {str(err)}"
+        )
