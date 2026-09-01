@@ -39,7 +39,7 @@ def run_real_hybrid_fusion(query: str, limit: int) -> List[Dict[str, Any]]:
     return fused[:limit]
 
 async def run_production_reranker(query: str, candidates: List[Dict[str, Any]], top_k: int) -> List[Dict[str, Any]]:
-    """[RERANK] Evaluates candidate text relevance via a Gemini cross-encoder pass."""
+    """[RERANK] Employs a true Gemini cross-encoder pass to evaluate real chunk data text."""
     if not candidates:
         return []
     
@@ -48,7 +48,7 @@ async def run_production_reranker(query: str, candidates: List[Dict[str, Any]], 
     Evaluate how relevant each text block is to completely answering the user query.
     User Query: "{query}"
     Candidates: {json.dumps(evaluation_payload)}
-    Respond strictly in JSON array format matching this pattern: [{"index": 0, "relevance_score": 0.95}]
+    Respond strictly in JSON array format matching this pattern: [{{ "index": 0, "relevance_score": 0.95 }}]
     """
     try:
         response = await ai_client.aio.models.generate_content(
@@ -64,6 +64,8 @@ async def run_production_reranker(query: str, candidates: List[Dict[str, Any]], 
         return candidates[:top_k]
     except Exception:
         return candidates[:top_k]
+
+
 
 async def run_pdf_assistant_pipeline(query: str, top_k: int = 3) -> Dict[str, Any]:
     """[LLM -> ANSWER + SOURCES + DIAGNOSTICS] Complete context tracking engine."""
