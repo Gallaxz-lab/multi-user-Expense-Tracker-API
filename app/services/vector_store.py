@@ -1,6 +1,7 @@
 import numpy as np
 import re
-import time  # ✅ Needed for pacing rate limits
+import time
+import random
 from google import genai
 from typing import List, Dict, Any
 from rank_bm25 import BM25Okapi
@@ -17,54 +18,87 @@ def tokenize_text(text: str) -> List[str]:
     """Splits text strings into normalized word tokens for keyword matching."""
     return re.findall(r'\w+', text.lower())
 
+def embed_with_retry(texts: List[str], max_retries: int = 5) -> Any:
+    """
+    [RESILIENT EMBEDDING RETRY LAYER]
+    Executes embed_content calls backed by Exponential Backoff with Jitter
+    to naturally survive 429 RESOURCE_EXHAUSTED system rate ceilings.
+    """
+    base_delay = 2.0  # Initial sleep duration in seconds
+    factor = 2.0     # Exponential growth multiplier
+    
+    for attempt in range(max_retries):
+        try:
+            # Trigger the standard SDK embedding block call
+            response = ai_client.models.embed_content(
+                model="gemini-embedding-001", 
+                contents=texts
+            )
+            return response
+            
+        except Exception as e:
+            error_msg = str(e)
+            # Intercept strict 429 Resource Exhaustion patterns
+            if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
+                if attempt == max_retries - 1:
+                    print(f"❌ Rate limit retry exhaustion hit after {max_retries} attempts.")
+                    raise e
+                
+                # Compute exponential delay window duration: (base * (factor ^ attempt))
+                calculated_delay = base_delay * (factor ** attempt)
+                # Introduce Jitter randomness variation to prevent cluster concurrency lockups
+                jitter = random.uniform(0.5, 1.5)
+                final_sleep_time = calculated_delay * jitter
+                
+                print(f"⚠️ 429 Quota Encountered. Attempt {attempt + 1}/{max_retries} failed. "
+                      f"Throttling backoff: Sleeping for {final_sleep_time:.2f} seconds...")
+                time.sleep(final_sleep_time)
+            else:
+                # Immediately raise non-quota related exceptions (such as bad auth or network drops)
+                raise e
+
 def get_embedding(text: str) -> np.ndarray:
-    """[EMBED] Generates real vectors via the text-embedding-004 standard."""
+    """Generates real vectors for singular strings safely backed by the retry engine."""
     cleaned_text = text.strip() if text else "Empty text block placeholder node"
     try:
-        response = ai_client.models.embed_content(
-            model="gemini-embedding-001", 
-            contents=cleaned_text
-        )
+        response = embed_with_retry(texts=[cleaned_text])
         return np.array(response.embeddings[0].values, dtype=np.float32)
     except Exception as e:
         raise RuntimeError(f"Gemini embedding extraction layer failed: {str(e)}")
 
 def add_uploaded_pdf_to_real_indices(new_chunks: List[Dict[str, Any]]):
-    """[STORE & INDEX] Encodes semantic vectors using rate-safe batched and paced execution loops."""
+    """[STORE & INDEX] Encodes semantic vectors using rate-safe batch and paced retry logic."""
     global PROD_CHUNKS_DB, PROD_EMBEDDINGS_DB, BM25_ENGINE_INSTANCE
     
     if not new_chunks:
         return
 
-    print(f"⏳ Processing {len(new_chunks)} text blocks via throttled batch configuration...")
+    print(f"⏳ Processing {len(new_chunks)} text blocks via quota-resilient batch infrastructure...")
     
-    # Gemini safely allows up to 100+ strings per call
-    BATCH_SIZE = 10
+    # Process small, steady batch windows to stay safely under free-tier payload limits
+    BATCH_SIZE = 8
     
     for i in range(0, len(new_chunks), BATCH_SIZE):
         batch_slice = new_chunks[i:i + BATCH_SIZE]
         batch_texts = [chunk["text"].strip() if chunk["text"] else "Empty node placeholder" for chunk in batch_slice]
         
         try:
-            response = ai_client.models.embed_content(
-                model="gemini-embedding-001", 
-                contents=batch_texts
-            )
+            # Call our protected retry implementation layer
+            response = embed_with_retry(texts=batch_texts)
             
             for idx, embedding_obj in enumerate(response.embeddings):
                 vector_array = np.array(embedding_obj.values, dtype=np.float32)
                 PROD_EMBEDDINGS_DB.append(vector_array)
                 PROD_CHUNKS_DB.append(batch_slice[idx])
                 
-            print(f"📦 Successfully indexed chunks {i} to {i + len(batch_slice)}.")
+            print(f"📦 Successfully indexed chunk batch row window {i} to {i + len(batch_slice)}.")
             
-            # this line of code is to prevent hitting rate limits can be adjusted based on the API's rate limit policies
+            # Pacing padding interval to let public shared backend rate buckets breath
             if i + BATCH_SIZE < len(new_chunks):
-                print("⏳ Rate pacing: Sleeping for 2.5 seconds to refresh API quotas...")
-                time.sleep(2.5)
+                time.sleep(1.5)
                 
         except Exception as batch_err:
-            print(f"❌ Batch indexing process failed at window block slice {i}: {str(batch_err)}")
+            print(f"❌ Batch indexing pipeline hard-crashed at chunk position index {i}: {str(batch_err)}")
             raise RuntimeError(f"Gemini embedding batch layer crashed: {str(batch_err)}")
         
     # Re-build the production BM25 search corpus dynamically across all loaded documents
