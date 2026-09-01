@@ -7,9 +7,10 @@ from app.routers.auth import get_current_user
 import app.models.user as models_user
 from app.models.expense import Expense
 
-from app.services.document_processor import extract_and_chunk_pdf
-from app.services.vector_store import add_chunks_to_vector_store
+from app.services.document_processor import extract_and_chunk_pdf, DocumentProcessorService, SIMULATED_PDF_CHUNKS
 from app.services.rag_engine import run_pdf_assistant_pipeline
+from app.services.vector_store import add_chunks_to_vector_store, query_vector_store
+
 
 router = APIRouter(prefix="/search", tags=["Hybrid RAG & PDF Assistant"])
 
@@ -54,3 +55,52 @@ async def ask_questions_about_pdf(
         return result
     except Exception as err:
         raise HTTPException(status_code=502, detail=str(err))
+
+# =====================================================================
+# ENDPOINT 3: ASK QUESTIONS & INSPECT CHUNKS
+    # =====================================================================
+    
+    
+@router.get("/compare")
+def compare_simulated_retrieval_approaches(
+    query: str = Query(..., min_length=2, description="Type test terms like 'sleep', 'food', or 'id-9904'")
+) -> Dict[str, Any]:
+    """Evaluates keyword, semantic, hybrid, and reranking behaviors side-by-side [1]."""
+    
+    keyword_pool = []
+    semantic_pool = []
+    hybrid_pool = []
+    
+    # 1. Execute initial retrieval runs
+    for chunk in SIMULATED_PDF_CHUNKS:
+        k_score = DocumentProcessorService.simulate_keyword_score(query, chunk["text"])
+        s_score = DocumentProcessorService.simulate_semantic_score(query, chunk["text"])
+        
+        # Save independent search lists
+        if k_score > 0:
+            keyword_pool.append({"page": chunk["page"], "score": k_score, "text": chunk["text"]})
+        if s_score > 0.15:
+            semantic_pool.append({"page": chunk["page"], "score": s_score, "text": chunk["text"]})
+            
+        # Hybrid blends primitive matching scores to establish candidate lists
+        hybrid_pool.append({
+            "page": chunk["page"],
+            "combined_base_score": round(k_score + s_score, 2),
+            "text": chunk["text"]
+        })
+        
+    # Sort initial lists by their native weights
+    keyword_pool.sort(key=lambda x: x["score"], reverse=True)
+    semantic_pool.sort(key=lambda x: x["score"], reverse=True)
+    hybrid_pool.sort(key=lambda x: x["combined_base_score"], reverse=True)
+    
+    # 2. Run post-retrieval reranking pipeline on the hybrid candidates list
+    reranked_pool = DocumentProcessorService.simulate_reranker(hybrid_pool)
+    
+    return {
+        "user_query": query,
+        "keyword_search_output": keyword_pool,
+        "semantic_search_output": semantic_pool,
+        "hybrid_search_output": hybrid_pool,
+        "reranked_search_output": reranked_pool
+        }
