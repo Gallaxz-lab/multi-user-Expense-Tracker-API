@@ -1,5 +1,6 @@
 import numpy as np
 import re
+import time  # ✅ Needed for pacing rate limits
 from google import genai
 from typing import List, Dict, Any
 from rank_bm25 import BM25Okapi
@@ -24,38 +25,43 @@ def get_embedding(text: str) -> np.ndarray:
             model="gemini-embedding-001", 
             contents=cleaned_text
         )
-        return np.array(response.embeddings[0].values, dtype=np.float32)
+        return np.array(response.embeddings.values, dtype=np.float32)
     except Exception as e:
         raise RuntimeError(f"Gemini embedding extraction layer failed: {str(e)}")
 
-
 def add_uploaded_pdf_to_real_indices(new_chunks: List[Dict[str, Any]]):
-    """[STORE & INDEX] Encodes semantic vectors using rate-safe batch operations."""
+    """[STORE & INDEX] Encodes semantic vectors using rate-safe batched and paced execution loops."""
     global PROD_CHUNKS_DB, PROD_EMBEDDINGS_DB, BM25_ENGINE_INSTANCE
     
     if not new_chunks:
         return
-    print(f"⏳ Processing {len(new_chunks)} text blocks via batch embedding configurations...")
+
+    print(f"⏳ Processing {len(new_chunks)} text blocks via throttled batch configuration...")
     
     # Gemini safely allows up to 100+ strings per call
-    BATCH_SIZE = 15
+    BATCH_SIZE = 10
     
     for i in range(0, len(new_chunks), BATCH_SIZE):
         batch_slice = new_chunks[i:i + BATCH_SIZE]
-        
         batch_texts = [chunk["text"].strip() if chunk["text"] else "Empty node placeholder" for chunk in batch_slice]
-
+        
         try:
             response = ai_client.models.embed_content(
                 model="gemini-embedding-001", 
                 contents=batch_texts
             )
+            
             for idx, embedding_obj in enumerate(response.embeddings):
                 vector_array = np.array(embedding_obj.values, dtype=np.float32)
-                
-                # Append arrays to your active runtime state indices tracking maps
                 PROD_EMBEDDINGS_DB.append(vector_array)
                 PROD_CHUNKS_DB.append(batch_slice[idx])
+                
+            print(f"📦 Successfully indexed chunks {i} to {i + len(batch_slice)}.")
+            
+            # this line of code is to prevent hitting rate limits can be adjusted based on the API's rate limit policies
+            if i + BATCH_SIZE < len(new_chunks):
+                print("⏳ Rate pacing: Sleeping for 2.5 seconds to refresh API quotas...")
+                time.sleep(2.5)
                 
         except Exception as batch_err:
             print(f"❌ Batch indexing process failed at window block slice {i}: {str(batch_err)}")
@@ -65,8 +71,6 @@ def add_uploaded_pdf_to_real_indices(new_chunks: List[Dict[str, Any]]):
     tokenized_corpus = [tokenize_text(c["text"]) for c in PROD_CHUNKS_DB]
     BM25_ENGINE_INSTANCE = BM25Okapi(tokenized_corpus)
     print(f"✅ State updated: {len(PROD_CHUNKS_DB)} assets active in memory.")
-
-
 
 def run_real_keyword_search(query: str, top_k: int) -> List[Dict[str, Any]]:
     """[RETRIEVE: KEYWORD] Standard Okapi BM25 text match ranking."""
