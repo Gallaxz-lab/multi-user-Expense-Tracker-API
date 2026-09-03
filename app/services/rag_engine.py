@@ -52,7 +52,7 @@ async def run_production_reranker(query: str, candidates: List[Dict[str, Any]], 
     """
     try:
         response = await ai_client.aio.models.generate_content(
-            model='gemini-2.5-flash', contents=prompt,
+            model='models/gemini-3.6-flash', contents=prompt,
             config=types.GenerateContentConfig(temperature=0.0, response_mime_type="application/json")
         )
         scores = json.loads(response.text.strip())
