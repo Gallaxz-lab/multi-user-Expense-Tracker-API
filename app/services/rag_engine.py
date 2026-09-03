@@ -108,7 +108,7 @@ async def run_pdf_assistant_pipeline(query: str, top_k: int = 3) -> Dict[str, An
     
     try:
         response = await ai_client.aio.models.generate_content(
-            model='gemini-2.5-flash',
+            model='models/gemini-3.6-flash',
             contents=prompt,
             config=types.GenerateContentConfig(temperature=0.1, system_instruction=system_instruction)
         )

@@ -50,8 +50,14 @@ def run_evaluation_suite():
         except Exception:
             comp_data = {}
 
-        # Parse what pages raw vector search found
-        semantic_pages = [chunk["metadata"]["page_number"] for chunk in comp_data.get("real_semantic_vector_output", [])]
+        # ✅ FIX 1: Safely cast extracted page numbers to integers to guarantee accurate evaluation comparisons
+        semantic_pages = []
+        for chunk in comp_data.get("real_semantic_vector_output", []):
+            try:
+                semantic_pages.append(int(chunk["metadata"]["page_number"]))
+            except (KeyError, ValueError, TypeError):
+                continue
+
         semantic_retrieved_correct = expected_page in semantic_pages if expected_page else True
         if q_type != "Unanswerable" and semantic_retrieved_correct:
             semantic_retrieval_successes += 1
@@ -65,22 +71,34 @@ def run_evaluation_suite():
             ask_data = {}
             
         answer_text = ask_data.get("answer", "ERROR")
-        pipeline_sources = [src["page_number"] for src in ask_data.get("sources", [])]
+        
+        # ✅ FIX 2: Safely cast sources list page values to integers
+        pipeline_sources = []
+        for src in ask_data.get("sources", []):
+            try:
+                pipeline_sources.append(int(src["page_number"]))
+            except (KeyError, ValueError, TypeError):
+                continue
+
         pipeline_retrieved_correct = expected_page in pipeline_sources if expected_page else True
         if q_type != "Unanswerable" and pipeline_retrieved_correct:
             pipeline_retrieval_successes += 1
             
         # 3. Assess Generation Behavior
         generation_verdict = "CORRECT_ANSWER"
+        
+        # ✅ FIX 3: Expand the refusal evaluation checklist to catch variants of "cannot find the answer" or "not provided"
+        is_refusal = any(term in answer_text.lower() for term in ["cannot find", "not find", "not provided", "not mention", "don't have info", "no information"])
+        
         if q_type == "Unanswerable":
             total_unanswerable += 1
-            if "cannot find the answer" in answer_text.lower():
+            if is_refusal:
                 generation_verdict = "CORRECT_REFUSAL ✅"
                 correct_refusals += 1
             else:
                 generation_verdict = "HALLUCINATION / FAILED REFUSAL ❌"
         else:
-            if "cannot find the answer" in answer_text.lower():
+            if is_refusal:
                 generation_verdict = "FALSE_NEGATIVE_MISS ❌"
             elif expected_page not in pipeline_sources:
                 generation_verdict = "UNSUPPORTED_BY_SOURCES ⚠️"
@@ -93,17 +111,14 @@ def run_evaluation_suite():
             generation_verdict
         ])
         
-        # Throttle pacing interval to remain safely below Gemini free-tier rate limits
-        time.sleep(2.0)
+        time.sleep(1.5)
 
-    # Output comparative results matrix table
     headers = ["ID", "Query Category", "Semantic Retrieval", "Hybrid+Rerank Retrieval", "Generation Integrity Verdict"]
     print("\n" + "=" * 95)
     print("📋 RAG EVALUATION MATRIX REPORT")
     print("=" * 95)
     print(tabulate(table_rows, headers=headers, tablefmt="grid"))
     
-    # Calculate performance metrics summary card
     total_valid = len(EVAL_DATASET) - total_unanswerable
     print("\n📊 CONFIGURATION PERFORMANCE COMPARISON SUMMARY:")
     print("-" * 50)
