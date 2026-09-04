@@ -35,14 +35,27 @@ def classify_intent_node(state: SupportRouterState) -> Dict[str, Any]:
             HumanMessage(content=f"User Query: '{query}'")
         ])
         
-        # Parse the structured JSON response cleanly
-        data = json.loads(response.content.strip())
+        content_text = ""
+        if isinstance(response.content, str):
+            content_text = response.content.strip()
+        elif isinstance(response.content, list):
+            content_text = "".join([str(item) for item in response.content]).strip()
+        else:
+            content_text = str(response.content).strip()
+
+        if "```" in content_text:
+            content_text = content_text.split("```")[1]
+            if content_text.startswith("json"):
+                content_text = content_text[4:]
+        content_text = content_text.strip()
+
+        data = json.loads(content_text)
         intent = data.get("intent", "general")
-    except Exception:
-        intent = "general" # Safe fallback classification boundary
+    except Exception as e:
+        print(f"⚠️ Intent classification parsing warning: {str(e)}. Fallback to 'general'.")
+        intent = "general" 
         
     print(f"🔮 [Node: Classify] Mapped user query intent classification route -> '{intent}'")
-    # Returns only the keys we want to update/change inside the global state
     return {"classified_intent": intent}
 
 
