@@ -13,4 +13,4 @@ __pycache__/
 __pycache__/
 **/__pycache__/
 generate_readme.py
-tests
+.tests
