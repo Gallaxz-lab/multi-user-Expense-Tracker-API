@@ -6,7 +6,7 @@ from langchain_core.runnables import RunnablePassthrough
 from typing import List, Dict, Any
 
 from app.config import settings 
-from app.services.vector_store import VECTOR_VECTORSTORE_INSTANCE, KEYWORD_RETRIEVER_INSTANCE, get_vector_store, get_keyword_retriever
+from app.services.vector_store import get_vector_store, get_keyword_retriever
 
 # Initialize conversational LLM instance parameters
 llm = ChatGoogleGenerativeAI(
