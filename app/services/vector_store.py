@@ -7,7 +7,7 @@ from app.config import settings
 
 # 1. Initialize modern LangChain Embedding instances
 embeddings_engine = GoogleGenAIEmbeddings(
-    model="models/text-embedding-004",
+    model="text-embedding-004",
     google_api_key=settings.GEMINI_API_KEY
 )
 
