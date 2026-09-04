@@ -8,20 +8,17 @@ from langchain_core.documents import Document
 def process_uploaded_pdf_to_langchain_docs(file_bytes: bytes, filename: str) -> List[Document]:
     """[LOADING -> SPLITTING] Loads PDF bytes and slices them into semantic chunks."""
     
-    # Write incoming bytes to a temporary disk block file so PyPDFLoader can access it
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
         temp_pdf.write(file_bytes)
         temp_pdf_path = temp_pdf.name
 
     try:
-        # 1. Loading documents cleanly using LangChain utilities
         loader = PyPDFLoader(temp_pdf_path)
         raw_documents = loader.load()
 
-        # 2. Splitting documents via smart semantic sliding windows
         text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=500,       # Targets roughly 100-120 words per block
-            chunk_overlap=100,    # Preserves overlap boundary constraints
+            chunk_size=500,
+            chunk_overlap=100,    
             length_function=len
         )
         
@@ -37,7 +34,6 @@ def process_uploaded_pdf_to_langchain_docs(file_bytes: bytes, filename: str) -> 
         return split_docs
 
     finally:
-        # Clean up temporary disk files safely
         if os.path.exists(temp_pdf_path):
             os.remove(temp_pdf_path)
 

@@ -1,3 +1,5 @@
+import os
+import pickle
 from typing import List
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores import InMemoryVectorStore
@@ -5,196 +7,60 @@ from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
 from app.config import settings
 
+# Unified shared file path markers inside your container
+CACHE_DIR = "/tmp/rag_cache"
+VECTOR_STORE_PATH = os.path.join(CACHE_DIR, "vector_store.json")
+BM25_STORE_PATH = os.path.join(CACHE_DIR, "bm25_store.pkl")
+
+os.makedirs(CACHE_DIR, exist_ok=True)
 
 embeddings_engine = GoogleGenerativeAIEmbeddings(
     model="gemini-embedding-001",
     google_api_key=settings.GEMINI_API_KEY
 )
 
-VECTOR_VECTORSTORE_INSTANCE = InMemoryVectorStore(embeddings_engine)
-KEYWORD_RETRIEVER_INSTANCE: BM25Retriever = None
+def get_vector_store() -> InMemoryVectorStore:
+    """Loads or initializes the shared vector database store instance from the file system."""
+    store = InMemoryVectorStore(embeddings_engine)
+    if os.path.exists(VECTOR_STORE_PATH):
+        try:
+            # InMemoryVectorStore supports native text state file loading
+            store = InMemoryVectorStore.load(VECTOR_STORE_PATH, embeddings_engine)
+            print("💾 Successfully restored active Vector Store states from shared file cache.")
+        except Exception as e:
+            print(f"⚠️ Vector store load failed, fallback initialization activated: {str(e)}")
+    return store
 
+def get_keyword_retriever() -> BM25Retriever:
+    """Loads the shared full-text BM25 index from file storage across worker pipelines."""
+    if os.path.exists(BM25_STORE_PATH):
+        try:
+            with open(BM25_STORE_PATH, "rb") as f:
+                retriever = pickle.load(f)
+                print("💾 Successfully restored full-text BM25 indices from shared file cache.")
+                return retriever
+        except Exception as e:
+            print(f"⚠️ BM25 load failed: {str(e)}")
+    return None
 
 def add_docs_to_langchain_retrievers(documents: List[Document]):
-    """[CREATING EMBEDDINGS & RETRIEVERS] Loads elements across diverse indices."""
-    global VECTOR_VECTORSTORE_INSTANCE, KEYWORD_RETRIEVER_INSTANCE
-    
+    """[STORE & SERIALIZE] Commits elements across multi-worker file architectures."""
     if not documents:
         return
 
-    # Automatically embeds, batches, and buffers content safely
-    VECTOR_VECTORSTORE_INSTANCE.add_documents(documents)
-    
-    # Instantiate the structural BM25 core extraction parameters corpus map
-    KEYWORD_RETRIEVER_INSTANCE = BM25Retriever.from_documents(documents)
-    print("✅ LangChain dense vectors and full-text keyword indices compiled completely.")
+    vector_store = get_vector_store()
+    vector_store.add_documents(documents)
+    vector_store.dump(VECTOR_STORE_PATH)
+
+    bm25_retriever = BM25Retriever.from_documents(documents)
+    with open(BM25_STORE_PATH, "wb") as f:
+        pickle.dump(bm25_retriever, f)
+        
+    print(f"✅ LangChain indices serialized securely onto internal workspace disk coordinates.")
 
 def clear_all_langchain_retrievers():
-    """[RESET STORAGE ENGINE] Securely flushes both the dense vector store and sparse BM25 indices."""
-    global VECTOR_VECTORSTORE_INSTANCE, KEYWORD_RETRIEVER_INSTANCE
-    
-    # LangChain's InMemoryVectorStore has a built-in store dictionary we can wipe clean
-    if hasattr(VECTOR_VECTORSTORE_INSTANCE, "store"):
-        VECTOR_VECTORSTORE_INSTANCE.store.clear()
-        
-    KEYWORD_RETRIEVER_INSTANCE = None
-    print("🧹 LangChain InMemoryVectorStore and BM25 index maps have been flushed completely.")
-
-'''
-#this is the previous module that was used for vector store, but now we are using the new one with more features and better performance.
-
-ai_client = genai.Client(api_key=settings.GEMINI_API_KEY)
-
-# Global runtime multi-document state caches
-PROD_CHUNKS_DB: List[Dict[str, Any]] = []
-PROD_EMBEDDINGS_DB: List[np.ndarray] = []
-BM25_ENGINE_INSTANCE: BM25Okapi = None
-
-def tokenize_text(text: str) -> List[str]:
-    """Splits text strings into normalized word tokens for keyword matching."""
-    return re.findall(r'\w+', text.lower())
-
-def embed_with_retry(texts: List[str], max_retries: int = 5) -> Any:
-    """
-    [RESILIENT EMBEDDING RETRY LAYER]
-    Executes embed_content calls backed by Exponential Backoff with Jitter
-    to naturally survive 429 RESOURCE_EXHAUSTED system rate ceilings.
-    """
-    base_delay = 2.0  # Initial sleep duration in seconds
-    factor = 2.0     # Exponential growth multiplier
-    
-    for attempt in range(max_retries):
-        try:
-            # Trigger the standard SDK embedding block call
-            response = ai_client.models.embed_content(
-                model="gemini-embedding-001", 
-                contents=texts
-            )
-            return response
-            
-        except Exception as e:
-            error_msg = str(e)
-            # Intercept strict 429 Resource Exhaustion patterns
-            if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
-                if attempt == max_retries - 1:
-                    print(f"❌ Rate limit retry exhaustion hit after {max_retries} attempts.")
-                    raise e
-                
-                # Compute exponential delay window duration: (base * (factor ^ attempt))
-                calculated_delay = base_delay * (factor ** attempt)
-                # Introduce Jitter randomness variation to prevent cluster concurrency lockups
-                jitter = random.uniform(0.5, 1.5)
-                final_sleep_time = calculated_delay * jitter
-                
-                print(f"⚠️ 429 Quota Encountered. Attempt {attempt + 1}/{max_retries} failed. "
-                      f"Throttling backoff: Sleeping for {final_sleep_time:.2f} seconds...")
-                time.sleep(final_sleep_time)
-            else:
-                # Immediately raise non-quota related exceptions (such as bad auth or network drops)
-                raise e
-
-def get_embedding(text: str) -> np.ndarray:
-    """Generates real vectors for singular strings safely backed by the retry engine."""
-    cleaned_text = text.strip() if text else "Empty text block placeholder node"
-    try:
-        response = embed_with_retry(texts=[cleaned_text])
-        return np.array(response.embeddings[0].values, dtype=np.float32)
-    except Exception as e:
-        raise RuntimeError(f"Gemini embedding extraction layer failed: {str(e)}")
-
-def add_uploaded_pdf_to_real_indices(new_chunks: List[Dict[str, Any]]):
-    """[STORE & INDEX] Encodes semantic vectors using rate-safe batch and paced retry logic."""
-    global PROD_CHUNKS_DB, PROD_EMBEDDINGS_DB, BM25_ENGINE_INSTANCE
-    
-    if not new_chunks:
-        return
-
-    print(f"⏳ Processing {len(new_chunks)} text blocks via quota-resilient batch infrastructure...")
-    
-    # Process small, steady batch windows to stay safely under free-tier payload limits
-    BATCH_SIZE = 8
-    
-    for i in range(0, len(new_chunks), BATCH_SIZE):
-        batch_slice = new_chunks[i:i + BATCH_SIZE]
-        batch_texts = [chunk["text"].strip() if chunk["text"] else "Empty node placeholder" for chunk in batch_slice]
-        
-        try:
-            # Call our protected retry implementation layer
-            response = embed_with_retry(texts=batch_texts)
-            
-            for idx, embedding_obj in enumerate(response.embeddings):
-                vector_array = np.array(embedding_obj.values, dtype=np.float32)
-                PROD_EMBEDDINGS_DB.append(vector_array)
-                PROD_CHUNKS_DB.append(batch_slice[idx])
-                
-            print(f"📦 Successfully indexed chunk batch row window {i} to {i + len(batch_slice)}.")
-            
-            # Pacing padding interval to let public shared backend rate buckets breath
-            if i + BATCH_SIZE < len(new_chunks):
-                time.sleep(1.5)
-                
-        except Exception as batch_err:
-            print(f"❌ Batch indexing pipeline hard-crashed at chunk position index {i}: {str(batch_err)}")
-            raise RuntimeError(f"Gemini embedding batch layer crashed: {str(batch_err)}")
-        
-    # Re-build the production BM25 search corpus dynamically across all loaded documents
-    tokenized_corpus = [tokenize_text(c["text"]) for c in PROD_CHUNKS_DB]
-    BM25_ENGINE_INSTANCE = BM25Okapi(tokenized_corpus)
-    print(f"✅ State updated: {len(PROD_CHUNKS_DB)} assets active in memory.")
-
-def run_real_keyword_search(query: str, top_k: int) -> List[Dict[str, Any]]:
-    """[RETRIEVE: KEYWORD] Standard Okapi BM25 text match ranking."""
-    global PROD_CHUNKS_DB, BM25_ENGINE_INSTANCE
-    if not BM25_ENGINE_INSTANCE or not PROD_CHUNKS_DB:
-        return []
-        
-    tokenized_query = tokenize_text(query)
-    scores = BM25_ENGINE_INSTANCE.get_scores(tokenized_query)
-    
-    results = []
-    for idx, score in enumerate(scores):
-        if score > 0:
-            results.append({
-                "score": round(float(score), 4),
-                "chunk_id": PROD_CHUNKS_DB[idx]["id"],
-                "text": PROD_CHUNKS_DB[idx]["text"],
-                "metadata": PROD_CHUNKS_DB[idx]["metadata"]
-            })
-    results.sort(key=lambda x: x["score"], reverse=True)
-    return results[:top_k]
-
-def run_real_semantic_search(query: str, top_k: int) -> List[Dict[str, Any]]:
-    """[RETRIEVE: SEMANTIC] Standard vector cosine similarity distance matching."""
-    global PROD_CHUNKS_DB, PROD_EMBEDDINGS_DB
-    if not PROD_EMBEDDINGS_DB:
-        return []
-        
-    query_vector = get_embedding(query)
-    results = []
-    
-    for idx, doc_vector in enumerate(PROD_EMBEDDINGS_DB):
-        dot = np.dot(query_vector, doc_vector)
-        norm_q = np.linalg.norm(query_vector)
-        norm_d = np.linalg.norm(doc_vector)
-        score = float(dot / (norm_q * norm_d)) if norm_q and norm_d else 0.0
-        
-        results.append({
-            "score": round(score, 4),
-            "chunk_id": PROD_CHUNKS_DB[idx]["id"],
-            "text": PROD_CHUNKS_DB[idx]["text"],
-            "metadata": PROD_CHUNKS_DB[idx]["metadata"]
-        })
-    results.sort(key=lambda x: x["score"], reverse=True)
-    return results[:top_k]
-
-
-def clear_all_indexed_documents_store():
-    """[RESET ENGINE STORAGE] Wipes the in-memory lists and keyword search indices clean."""
-    global PROD_CHUNKS_DB, PROD_EMBEDDINGS_DB, BM25_ENGINE_INSTANCE
-    
-    PROD_CHUNKS_DB.clear()
-    PROD_EMBEDDINGS_DB.clear()
-    BM25_ENGINE_INSTANCE = None
-    
-    print("🧹 Volatile Vector and BM25 indices have been flushed and reset to factory defaults.")
-'''
+    """[RESET STORAGE ENGINE] Securely flushes disk caches and resets worker mappings."""
+    for path in [VECTOR_STORE_PATH, BM25_STORE_PATH]:
+        if os.path.exists(path):
+            os.remove(path)
+    print("Clean cache reset completed successfully.")

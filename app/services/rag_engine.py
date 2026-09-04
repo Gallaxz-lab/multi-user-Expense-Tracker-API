@@ -5,8 +5,8 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
 from typing import List, Dict, Any
 
-from app.config import settings
-from app.services.vector_store import VECTOR_VECTORSTORE_INSTANCE, KEYWORD_RETRIEVER_INSTANCE
+from app.config import settings 
+from app.services.vector_store import VECTOR_VECTORSTORE_INSTANCE, KEYWORD_RETRIEVER_INSTANCE, get_vector_store, get_keyword_retriever
 
 # Initialize conversational LLM instance parameters
 llm = ChatGoogleGenerativeAI(
@@ -27,21 +27,24 @@ def format_context_documents(docs: List[Any]) -> str:
 
 async def run_langchain_rag_pipeline(query: str, top_k: int = 3) -> Dict[str, Any]:
     """[RETRIEVING -> PASSING CONTEXT TO LLM -> RETURNING ANSWER WITH SOURCES]"""
-    global VECTOR_VECTORSTORE_INSTANCE, KEYWORD_RETRIEVER_INSTANCE
+    
+    vector_store = get_vector_store()
+    sparse_retriever = get_keyword_retriever()
 
-    if not KEYWORD_RETRIEVER_INSTANCE:
-        return {"answer": "Please upload a document before submitting queries.", "sources": []}
+    if not sparse_retriever:
+        return {
+            "answer": "Please upload a document before submitting queries. (No active index files detected across workers)", 
+            "sources": []
+        }
 
     # 1. CREATING A HYBRID RETRIEVER (Combines Dense Vectors + Sparse BM25 using native RRF math)
-    dense_retriever = VECTOR_VECTORSTORE_INSTANCE.as_retriever(search_kwargs={"k": top_k})
-    sparse_retriever = KEYWORD_RETRIEVER_INSTANCE
+    dense_retriever = vector_store.as_retriever(search_kwargs={"k": top_k})
     sparse_retriever.k = top_k
-
+    
     hybrid_ensemble_retriever = EnsembleRetriever(
         retrievers=[dense_retriever, sparse_retriever],
-        weights=[0.5, 0.5] # Balanced blending distribution weights configuration matrix
+        weights=[0.5, 0.5]
     )
-
     # 2. RETRIEVING RELEVANT DOCUMENTS
     retrieved_documents = hybrid_ensemble_retriever.invoke(query)
 
