@@ -52,8 +52,21 @@ def classify_intent_node(state: SupportRouterState) -> Dict[str, Any]:
         data = json.loads(content_text)
         intent = data.get("intent", "general")
     except Exception as e:
-        print(f"⚠️ Intent classification parsing warning: {str(e)}. Fallback to 'general'.")
-        intent = "general" 
+        error_msg = str(e)
+        if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
+            print("⚠️ 429 Daily Limit Hit. Activating Local Algorithmic Intent Routing Logic...")
+            
+            # Rule 1: Search for explicit human help indicator keywords
+            if any(w in query for w in ["human", "person", "agent", "supervisor", "billing", "money", "complain", "refund"]):
+                intent = "human"
+            # Rule 2: Search for standard policy lookup indicator keywords
+            elif any(w in query for w in ["policy", "guideline", "limit", "clause", "rule", "code", "token", "page", "document"]):
+                intent = "rag"
+            # Rule 3: Catch-all casual conversation fallback path
+            else:
+                intent = "general"
+        else:
+            intent = "general"
         
     print(f"🔮 [Node: Classify] Mapped user query intent classification route -> '{intent}'")
     return {"classified_intent": intent}
