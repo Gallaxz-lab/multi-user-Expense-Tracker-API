@@ -3,6 +3,7 @@ from typing import Dict, Any
 from app.services.document_processor import process_uploaded_pdf_to_langchain_docs
 from app.services.vector_store import add_docs_to_langchain_retrievers, clear_all_langchain_retrievers
 from app.services.rag_engine import run_langchain_rag_pipeline
+from app.services.graph_builder import compiled_support_graph
 
 router = APIRouter(prefix="/search", tags=["LangChain RAG Engine"])
 
@@ -49,6 +50,31 @@ def reset_pdf_knowledge_base_indices():
             status_code=500, 
             detail=f"An error occurred while attempting to wipe LangChain knowledge cache layers: {str(err)}"
         )
+
+@router.get("/smart-support")
+async def intelligent_support_router_endpoint(
+    query: str = Query(..., min_length=2, description="Type support tickets, chat, or policy questions")
+):
+    """API entrypoint executing a compiled dynamic LangGraph support workflow execution layer."""
+    try:
+        initial_state = {
+            "user_query": query,
+            "classified_intent": None,
+            "final_response": None,
+            "source_citations": []
+        }
+        
+        final_output_state = await compiled_support_graph.ainvoke(initial_state)
+        
+        return {
+            "query": query,
+            "detected_intent": final_output_state.get("classified_intent"),
+            "support_agent_response": final_output_state.get("final_response"),
+            "citations": final_output_state.get("source_citations")
+        }
+    except Exception as err:
+        raise HTTPException(status_code=502, detail=f"Graph orchestration failure: {str(err)}")
+
 
 
 '''
