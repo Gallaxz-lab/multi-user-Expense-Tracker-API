@@ -1,5 +1,5 @@
 from typing import List
-from langchain_google_genai import GoogleGenAIEmbeddings
+from langchain_google_genai import GoogleGenerativeAIEmbeddings as GoogleGenAIEmbeddings
 from langchain_community.vectorstores import InMemoryVectorStore
 from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
