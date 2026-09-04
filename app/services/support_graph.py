@@ -56,13 +56,10 @@ def classify_intent_node(state: SupportRouterState) -> Dict[str, Any]:
         if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
             print("⚠️ 429 Daily Limit Hit. Activating Local Algorithmic Intent Routing Logic...")
             
-            # Rule 1: Search for explicit human help indicator keywords
             if any(w in query for w in ["human", "person", "agent", "supervisor", "billing", "money", "complain", "refund"]):
                 intent = "human"
-            # Rule 2: Search for standard policy lookup indicator keywords
             elif any(w in query for w in ["policy", "guideline", "limit", "clause", "rule", "code", "token", "page", "document"]):
                 intent = "rag"
-            # Rule 3: Catch-all casual conversation fallback path
             else:
                 intent = "general"
         else:
