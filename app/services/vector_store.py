@@ -29,9 +29,19 @@ def add_docs_to_langchain_retrievers(documents: List[Document]):
     KEYWORD_RETRIEVER_INSTANCE = BM25Retriever.from_documents(documents)
     print("✅ LangChain dense vectors and full-text keyword indices compiled completely.")
 
+def clear_all_langchain_retrievers():
+    """[RESET STORAGE ENGINE] Securely flushes both the dense vector store and sparse BM25 indices."""
+    global VECTOR_VECTORSTORE_INSTANCE, KEYWORD_RETRIEVER_INSTANCE
+    
+    # LangChain's InMemoryVectorStore has a built-in store dictionary we can wipe clean
+    if hasattr(VECTOR_VECTORSTORE_INSTANCE, "store"):
+        VECTOR_VECTORSTORE_INSTANCE.store.clear()
+        
+    KEYWORD_RETRIEVER_INSTANCE = None
+    print("🧹 LangChain InMemoryVectorStore and BM25 index maps have been flushed completely.")
 
 '''
-#this module Storage and retrieval of semantic embeddings and keyword indices for document chunks.
+#this is the previous module that was used for vector store, but now we are using the new one with more features and better performance.
 
 ai_client = genai.Client(api_key=settings.GEMINI_API_KEY)
 

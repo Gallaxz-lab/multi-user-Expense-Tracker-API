@@ -44,8 +44,7 @@ def process_uploaded_pdf_to_langchain_docs(file_bytes: bytes, filename: str) -> 
 
 
 """"
-This module provides functions for processing documents, specifically PDFs, by extracting text and chunking it into manageable pieces for further analysis or storage. 
-It includes functionality for keyword and semantic search using BM25 and vector embeddings.
+#this is the previous module that was used for document processing, but now we are using the new one with more features and better performance.
 
 
 def chunk_text_by_words(text: str, chunk_size: int = 120, overlap: int = 25) -> List[str]:
