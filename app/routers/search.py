@@ -35,10 +35,9 @@ async def ask_langchain_rag_pipeline(
     except Exception as err:
         raise HTTPException(status_code=502, detail=f"Chain execution error: {str(err)}")
 
-
 @router.delete("/reset-knowledge-base")
 def reset_pdf_knowledge_base_indices():
-    """[CLEAR PDF ENGINE DATABASE] Manually flushes all uploaded LangChain document text chunks and vector embeddings."""
+    """Manually flushes all uploaded LangChain document text chunks and vector embeddings."""
     try:
         clear_all_langchain_retrievers()
         return {
@@ -50,6 +49,7 @@ def reset_pdf_knowledge_base_indices():
             status_code=500, 
             detail=f"An error occurred while attempting to wipe LangChain knowledge cache layers: {str(err)}"
         )
+
 
 '''
 # this is the previous module that was used for endpoint routing, but now we are using the new one with more features and better performance. 

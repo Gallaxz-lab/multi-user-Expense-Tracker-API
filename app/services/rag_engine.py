@@ -1,3 +1,4 @@
+import json
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_classic.retrievers import EnsembleRetriever
 from langchain_core.prompts import ChatPromptTemplate
@@ -5,10 +6,9 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
 from typing import List, Dict, Any
 
-from app.config import settings 
+from app.config import settings
 from app.services.vector_store import get_vector_store, get_keyword_retriever
 
-# Initialize conversational LLM instance parameters
 llm = ChatGoogleGenerativeAI(
     model="models/gemini-3.6-flash",
     google_api_key=settings.GEMINI_API_KEY,
@@ -16,7 +16,6 @@ llm = ChatGoogleGenerativeAI(
 )
 
 def format_context_documents(docs: List[Any]) -> str:
-    """Combines documents and appends source tracking strings cleanly."""
     context_blocks = []
     for doc in docs:
         meta = doc.metadata
@@ -28,27 +27,26 @@ def format_context_documents(docs: List[Any]) -> str:
 async def run_langchain_rag_pipeline(query: str, top_k: int = 3) -> Dict[str, Any]:
     """[RETRIEVING -> PASSING CONTEXT TO LLM -> RETURNING ANSWER WITH SOURCES]"""
     
+    # Safely pull the active database indices from disk
     vector_store = get_vector_store()
     sparse_retriever = get_keyword_retriever()
 
-    if not sparse_retriever:
+    if not vector_store or not sparse_retriever:
         return {
             "answer": "Please upload a document before submitting queries. (No active index files detected across workers)", 
             "sources": []
         }
 
-    # 1. CREATING A HYBRID RETRIEVER (Combines Dense Vectors + Sparse BM25 using native RRF math)
     dense_retriever = vector_store.as_retriever(search_kwargs={"k": top_k})
     sparse_retriever.k = top_k
-    
+
     hybrid_ensemble_retriever = EnsembleRetriever(
         retrievers=[dense_retriever, sparse_retriever],
         weights=[0.5, 0.5]
     )
-    # 2. RETRIEVING RELEVANT DOCUMENTS
+
     retrieved_documents = hybrid_ensemble_retriever.invoke(query)
 
-    # 3. CONSTRUCTING THE CONTEXTUAL PROMPT TEMPLATE MATRIX
     system_instruction = (
         "You are an expert operations assistant. Answer the user's question using ONLY the provided verified context lines.\n"
         "If the information is not present in the text blocks, respond exactly with: "
@@ -61,8 +59,6 @@ async def run_langchain_rag_pipeline(query: str, top_k: int = 3) -> Dict[str, An
         ("human", "{question}")
     ])
 
-    # 4. EXECUTING LANGCHAIN CHAIN ASSEMBLY EXPRESSION (LCEL)
-    # This securely pipe-lines retrieval formatting straight to generation workers
     rag_chain = (
         {"context": hybrid_ensemble_retriever | format_context_documents, "question": RunnablePassthrough()}
         | prompt
@@ -70,10 +66,8 @@ async def run_langchain_rag_pipeline(query: str, top_k: int = 3) -> Dict[str, An
         | StrOutputParser()
     )
 
-    # Resolve conversational text streaming answer
     ai_answer = await rag_chain.ainvoke(query)
 
-    # 5. RETURNING THE COMPREHENSIVE ANSWER ALONG WITH PRECISE SOURCES CITATIONS
     sources_metadata = []
     for doc in retrieved_documents:
         sources_metadata.append({
