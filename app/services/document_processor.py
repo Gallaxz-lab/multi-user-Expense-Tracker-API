@@ -1,10 +1,55 @@
 import os
-import io
-from pypdf import PdfReader
-from typing import List, Dict, Any
+import tempfile
+from typing import List
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_core.documents import Document
+
+def process_uploaded_pdf_to_langchain_docs(file_bytes: bytes, filename: str) -> List[Document]:
+    """[LOADING -> SPLITTING] Loads PDF bytes and slices them into semantic chunks."""
+    
+    # Write incoming bytes to a temporary disk block file so PyPDFLoader can access it
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
+        temp_pdf.write(file_bytes)
+        temp_pdf_path = temp_pdf.name
+
+    try:
+        # 1. Loading documents cleanly using LangChain utilities
+        loader = PyPDFLoader(temp_pdf_path)
+        raw_documents = loader.load()
+
+        # 2. Splitting documents via smart semantic sliding windows
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=500,       # Targets roughly 100-120 words per block
+            chunk_overlap=100,    # Preserves overlap boundary constraints
+            length_function=len
+        )
+        
+        split_docs = text_splitter.split_documents(raw_documents)
+
+        # Inject unified global tracking identities inside metadata attributes
+        for idx, doc in enumerate(split_docs):
+            doc.metadata["document_name"] = filename
+            doc.metadata["chunk_id"] = idx
+            # PyPDFLoader automatically extracts and populates doc.metadata["page"] (0-indexed)
+            doc.metadata["page_number"] = doc.metadata.get("page", 0) + 1
+
+        print(f"📊 LangChain Ingestion: Sliced '{filename}' into {len(split_docs)} semantic nodes.")
+        return split_docs
+
+    finally:
+        # Clean up temporary disk files safely
+        if os.path.exists(temp_pdf_path):
+            os.remove(temp_pdf_path)
+
+
+""""
+This module provides functions for processing documents, specifically PDFs, by extracting text and chunking it into manageable pieces for further analysis or storage. 
+It includes functionality for keyword and semantic search using BM25 and vector embeddings.
+
 
 def chunk_text_by_words(text: str, chunk_size: int = 120, overlap: int = 25) -> List[str]:
-    """Splits text by words using a sliding window for high granularity retrieval."""
+    "Splits text by words using a sliding window for high granularity retrieval."
     words = text.split()
     chunks = []
     for i in range(0, len(words), chunk_size - overlap):
@@ -15,7 +60,7 @@ def chunk_text_by_words(text: str, chunk_size: int = 120, overlap: int = 25) -> 
     return chunks
 
 def extract_and_chunk_pdf(file_bytes: bytes, filename: str) -> List[Dict[str, Any]]:
-    """[PDF UPLOAD -> EXTRACT -> CHUNK] Extracts pages and tracks precise metadata objects."""
+    "[PDF UPLOAD -> EXTRACT -> CHUNK] Extracts pages and tracks precise metadata objects."
     chunks_collection = []
     pdf_file = io.BytesIO(file_bytes)
     reader = PdfReader(pdf_file)
@@ -43,3 +88,4 @@ def extract_and_chunk_pdf(file_bytes: bytes, filename: str) -> List[Dict[str, An
             global_chunk_idx += 1
             
     return chunks_collection
+"""

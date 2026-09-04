@@ -1,10 +1,98 @@
-import json
-from google import genai
-from google.genai import types
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.retrievers import EnsembleRetriever
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
 from typing import List, Dict, Any
-from app.config import settings
-from app.services.vector_store import run_real_keyword_search, run_real_semantic_search
 
+from app.config import settings
+from app.services.vector_store import VECTOR_VECTORSTORE_INSTANCE, KEYWORD_RETRIEVER_INSTANCE
+
+# Initialize conversational LLM instance parameters
+llm = ChatGoogleGenerativeAI(
+    model="models/gemini-3.6-flash",
+    google_api_key=settings.GEMINI_API_KEY,
+    temperature=0.1
+)
+
+def format_context_documents(docs: List[Any]) -> str:
+    """Combines documents and appends source tracking strings cleanly."""
+    context_blocks = []
+    for doc in docs:
+        meta = doc.metadata
+        context_blocks.append(
+            f"[Source: {meta.get('document_name')} | Page: {meta.get('page_number')}]: {doc.page_content}"
+        )
+    return "\n\n".join(context_blocks)
+
+async def run_langchain_rag_pipeline(query: str, top_k: int = 3) -> Dict[str, Any]:
+    """[RETRIEVING -> PASSING CONTEXT TO LLM -> RETURNING ANSWER WITH SOURCES]"""
+    global VECTOR_VECTORSTORE_INSTANCE, KEYWORD_RETRIEVER_INSTANCE
+
+    if not KEYWORD_RETRIEVER_INSTANCE:
+        return {"answer": "Please upload a document before submitting queries.", "sources": []}
+
+    # 1. CREATING A HYBRID RETRIEVER (Combines Dense Vectors + Sparse BM25 using native RRF math)
+    dense_retriever = VECTOR_VECTORSTORE_INSTANCE.as_retriever(search_kwargs={"k": top_k})
+    sparse_retriever = KEYWORD_RETRIEVER_INSTANCE
+    sparse_retriever.k = top_k
+
+    hybrid_ensemble_retriever = EnsembleRetriever(
+        retrievers=[dense_retriever, sparse_retriever],
+        weights=[0.5, 0.5] # Balanced blending distribution weights configuration matrix
+    )
+
+    # 2. RETRIEVING RELEVANT DOCUMENTS
+    retrieved_documents = hybrid_ensemble_retriever.invoke(query)
+
+    # 3. CONSTRUCTING THE CONTEXTUAL PROMPT TEMPLATE MATRIX
+    system_instruction = (
+        "You are an expert operations assistant. Answer the user's question using ONLY the provided verified context lines.\n"
+        "If the information is not present in the text blocks, respond exactly with: "
+        "'I cannot find the answer in the provided documents.' Do not guess or assume data points.\n\n"
+        "Context:\n{context}"
+    )
+    
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", system_instruction),
+        ("human", "{question}")
+    ])
+
+    # 4. EXECUTING LANGCHAIN CHAIN ASSEMBLY EXPRESSION (LCEL)
+    # This securely pipe-lines retrieval formatting straight to generation workers
+    rag_chain = (
+        {"context": hybrid_ensemble_retriever | format_context_documents, "question": RunnablePassthrough()}
+        | prompt
+        | llm
+        | StrOutputParser()
+    )
+
+    # Resolve conversational text streaming answer
+    ai_answer = await rag_chain.ainvoke(query)
+
+    # 5. RETURNING THE COMPREHENSIVE ANSWER ALONG WITH PRECISE SOURCES CITATIONS
+    sources_metadata = []
+    for doc in retrieved_documents:
+        sources_metadata.append({
+            "document_name": doc.metadata.get("document_name"),
+            "page_number": doc.metadata.get("page_number"),
+            "chunk_id": doc.metadata.get("chunk_id")
+        })
+
+    return {
+        "answer": ai_answer,
+        "sources": sources_metadata,
+        "diagnostics": {
+            "total_chunks_passed_to_llm": len(retrieved_documents),
+            "inspect_retrieved_chunks": [{"text": d.page_content, "page": d.metadata.get("page_number")} for d in retrieved_documents]
+        }
+    }
+
+
+'''
+# this is the previous module that was used for RAG engine, but now we are using the new one with more features and better performance.
+ 
+ 
 ai_client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
 def run_real_hybrid_fusion(query: str, limit: int) -> List[Dict[str, Any]]:
@@ -132,3 +220,4 @@ async def run_pdf_assistant_pipeline(query: str, top_k: int = 3) -> Dict[str, An
         }
     except Exception as e:
         raise RuntimeError(f"Production generation failed: {str(e)}")
+'''

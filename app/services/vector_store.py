@@ -1,11 +1,37 @@
-import numpy as np
-import re
-import time
-import random
-from google import genai
-from typing import List, Dict, Any
-from rank_bm25 import BM25Okapi
+from typing import List
+from langchain_google_genai import GoogleGenAIEmbeddings
+from langchain_community.vectorstores import InMemoryVectorStore
+from langchain_community.retrievers import BM25Retriever
+from langchain_core.documents import Document
 from app.config import settings
+
+# 1. Initialize modern LangChain Embedding instances
+embeddings_engine = GoogleGenAIEmbeddings(
+    model="models/text-embedding-001",
+    google_api_key=settings.GEMINI_API_KEY
+)
+
+# Initialize persistent production in-memory state store targets
+VECTOR_VECTORSTORE_INSTANCE = InMemoryVectorStore(embeddings_engine)
+KEYWORD_RETRIEVER_INSTANCE: BM25Retriever = None
+
+def add_docs_to_langchain_retrievers(documents: List[Document]):
+    """[CREATING EMBEDDINGS & RETRIEVERS] Loads elements across diverse indices."""
+    global VECTOR_VECTORSTORE_INSTANCE, KEYWORD_RETRIEVER_INSTANCE
+    
+    if not documents:
+        return
+
+    # Automatically embeds, batches, and buffers content safely
+    VECTOR_VECTORSTORE_INSTANCE.add_documents(documents)
+    
+    # Instantiate the structural BM25 core extraction parameters corpus map
+    KEYWORD_RETRIEVER_INSTANCE = BM25Retriever.from_documents(documents)
+    print("✅ LangChain dense vectors and full-text keyword indices compiled completely.")
+
+
+'''
+#this module Storage and retrieval of semantic embeddings and keyword indices for document chunks.
 
 ai_client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
@@ -161,3 +187,4 @@ def clear_all_indexed_documents_store():
     BM25_ENGINE_INSTANCE = None
     
     print("🧹 Volatile Vector and BM25 indices have been flushed and reset to factory defaults.")
+'''
