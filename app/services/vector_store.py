@@ -1,19 +1,19 @@
 from typing import List
-from langchain_google_genai import GoogleGenerativeAIEmbeddings as GoogleGenAIEmbeddings
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores import InMemoryVectorStore
 from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
 from app.config import settings
 
-# 1. Initialize modern LangChain Embedding instances
-embeddings_engine = GoogleGenAIEmbeddings(
-    model="text-embedding-004",
+# ✅ FIXED: Switched model string parameter to gemini-embedding-001
+embeddings_engine = GoogleGenerativeAIEmbeddings(
+    model="gemini-embedding-001",
     google_api_key=settings.GEMINI_API_KEY
 )
 
-# Initialize persistent production in-memory state store targets
 VECTOR_VECTORSTORE_INSTANCE = InMemoryVectorStore(embeddings_engine)
 KEYWORD_RETRIEVER_INSTANCE: BM25Retriever = None
+
 
 def add_docs_to_langchain_retrievers(documents: List[Document]):
     """[CREATING EMBEDDINGS & RETRIEVERS] Loads elements across diverse indices."""
