@@ -5,7 +5,7 @@ from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
 from app.config import settings
 
-# ✅ FIXED: Switched model string parameter to gemini-embedding-001
+
 embeddings_engine = GoogleGenerativeAIEmbeddings(
     model="gemini-embedding-001",
     google_api_key=settings.GEMINI_API_KEY

@@ -31,11 +31,8 @@ def process_uploaded_pdf_to_langchain_docs(file_bytes: bytes, filename: str) -> 
         for idx, doc in enumerate(split_docs):
             doc.metadata["document_name"] = filename
             doc.metadata["chunk_id"] = idx
-            
             raw_page = doc.metadata.get("page", doc.metadata.get("page_number", 0))
-            
             doc.metadata["page_number"] = int(raw_page) + 1
-
         print(f"📊 LangChain Ingestion: Sliced '{filename}' into {len(split_docs)} semantic nodes.")
         return split_docs
 
