@@ -1,16 +1,58 @@
-from fastapi import APIRouter, Depends, Query, HTTPException, UploadFile, File, status
-from sqlalchemy.orm import Session
-from typing import Dict, Any, List
+from fastapi import APIRouter, UploadFile, File, Query, HTTPException
+from typing import Dict, Any
+from app.services.document_processor import process_uploaded_pdf_to_langchain_docs
+from app.services.vector_store import add_docs_to_langchain_retrievers, clear_all_langchain_retrievers
+from app.services.rag_engine import run_langchain_rag_pipeline
 
-from app.database.connection import get_db
-from app.routers.auth import get_current_user
-import app.models.user as models_user
-from app.models.expense import Expense
+router = APIRouter(prefix="/search", tags=["LangChain RAG Engine"])
 
-from app.services.document_processor import extract_and_chunk_pdf
-from app.services.vector_store import add_uploaded_pdf_to_real_indices, run_real_semantic_search, run_real_keyword_search, clear_all_indexed_documents_store
-from app.services.rag_engine import run_pdf_assistant_pipeline, run_real_hybrid_fusion, run_production_reranker
+@router.post("/upload-pdf")
+async def upload_pdf_via_langchain(file: UploadFile = File(...)):
+    """Uploads files and indexes them across LangChain retrievers safely."""
+    if not file.filename.endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only standard PDF assets allowed.")
+    try:
+        file_bytes = await file.read()
+        langchain_documents = process_uploaded_pdf_to_langchain_docs(file_bytes, file.filename)
+        
+        if not langchain_documents:
+            return {"message": "No extractable semantic sections captured."}
+            
+        add_docs_to_langchain_retrievers(langchain_documents)
+        return {"filename": file.filename, "total_chunks_loaded": len(langchain_documents)}
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"LangChain Ingestion crash: {str(err)}")
 
+@router.get("/ask")
+async def ask_langchain_rag_pipeline(
+    query: str = Query(..., min_length=2, description="Ask questions via LangChain assembly chains"),
+    top_k: int = Query(3, ge=1, le=5)
+) -> Dict[str, Any]:
+    """Queries your document knowledge base and returns a conversational answer with sources."""
+    try:
+        result = await run_langchain_rag_pipeline(query=query, top_k=top_k)
+        return result
+    except Exception as err:
+        raise HTTPException(status_code=502, detail=f"Chain execution error: {str(err)}")
+
+
+@router.delete("/reset-knowledge-base")
+def reset_pdf_knowledge_base_indices():
+    """[CLEAR PDF ENGINE DATABASE] Manually flushes all uploaded LangChain document text chunks and vector embeddings."""
+    try:
+        clear_all_langchain_retrievers()
+        return {
+            "status": "SUCCESS",
+            "message": "All LangChain document text chunks and vector embeddings have been securely wiped from memory indices."
+        }
+    except Exception as err:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"An error occurred while attempting to wipe LangChain knowledge cache layers: {str(err)}"
+        )
+
+'''
+# this is the previous module that was used for endpoint routing, but now we are using the new one with more features and better performance. 
 
 router = APIRouter(prefix="/search", tags=["Hybrid RAG & PDF Assistant"])
 
@@ -91,3 +133,4 @@ def reset_pdf_knowledge_base_indices():
             status_code=500, 
             detail=f"An error occurred while attempting to wipe knowledge cache layers: {str(err)}"
         )
+'''
