@@ -17,7 +17,7 @@ def process_uploaded_pdf_to_langchain_docs(file_bytes: bytes, filename: str) -> 
         raw_documents = loader.load()
 
         text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=100,
+            chunk_size=1000,
             chunk_overlap=200,    
             length_function=len
         )
