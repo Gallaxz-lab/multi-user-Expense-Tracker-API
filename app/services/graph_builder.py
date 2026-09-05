@@ -1,34 +1,37 @@
 from langgraph.graph import StateGraph, END
 from app.schemas.support_state import SupportRouterState
 from app.services.support_graph import (
-    classify_intent_node,
-    generate_general_response_node,
-    execute_rag_support_node,
-    route_to_human_desk_node,
-    choose_next_node_conditional
+    agent_brain_node,
+    execute_tool_node,
+    final_responder_node,
+    route_conditional_edges
 )
 
-workflow_builder = StateGraph(SupportRouterState)
-workflow_builder.add_node("intent_classifier", classify_intent_node)
-workflow_builder.add_node("general_responder", generate_general_response_node)
-workflow_builder.add_node("rag_assistant", execute_rag_support_node)
-workflow_builder.add_node("human_escalator", route_to_human_desk_node)
+# 1. Initialize the StateGraph machine
+agent_graph = StateGraph(SupportRouterState)
 
-workflow_builder.set_entry_point("intent_classifier")
+# 2. Add structural processing nodes
+agent_graph.add_node("agent_brain", agent_brain_node)
+agent_graph.add_node("tool_executor", execute_tool_node)
+agent_graph.add_node("final_responder", final_responder_node)
 
+# 3. Establish graph entrypoint block
+agent_graph.set_entry_point("agent_brain")
 
-workflow_builder.add_conditional_edges(
-    "intent_classifier",
-    choose_next_node_conditional,
+# 4. Bind conditional edges to support loopback patterns
+agent_graph.add_conditional_edges(
+    "agent_brain",
+    route_conditional_edges,
     {
-        "execute_general_path": "general_responder",
-        "execute_rag_path": "rag_assistant",
-        "execute_human_path": "human_escalator"
+        "loop_back_to_brain": "agent_brain",
+        "go_to_tool_executor": "tool_executor",
+        "go_to_responder": "final_responder"
     }
 )
 
-workflow_builder.add_edge("general_responder", END)
-workflow_builder.add_edge("rag_assistant", END)
-workflow_builder.add_edge("human_escalator", END)
+# 5. Connect finishing nodes to the graph terminal endpoint
+agent_graph.add_edge("tool_executor", "agent_brain") 
+agent_graph.add_edge("final_responder", END)
 
-compiled_support_graph = workflow_builder.compile()
+# 6. Compile graph pipeline state workflows cleanly
+compiled_support_graph = agent_graph.compile()

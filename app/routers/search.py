@@ -53,27 +53,31 @@ def reset_pdf_knowledge_base_indices():
 
 @router.get("/smart-support")
 async def intelligent_support_router_endpoint(
-    query: str = Query(..., min_length=2, description="Type support tickets, chat, or policy questions")
+    query: str = Query(..., min_length=2, description="Test agent tool iterations")
 ):
-    """API entrypoint executing a compiled dynamic LangGraph support workflow execution layer."""
+    """Exposes our multi-step tool-calling LangGraph agent workflow."""
     try:
         initial_state = {
             "user_query": query,
-            "classified_intent": None,
-            "final_response": None,
-            "source_citations": []
+            "next_step": None,
+            "executed_tools": [],
+            "tool_results": {},
+            "loop_count": 0,
+            "final_response": None
         }
         
         final_output_state = await compiled_support_graph.ainvoke(initial_state)
         
         return {
             "query": query,
-            "detected_intent": final_output_state.get("classified_intent"),
-            "support_agent_response": final_output_state.get("final_response"),
-            "citations": final_output_state.get("source_citations")
+            "actions_taken_by_agent": final_output_state.get("executed_tools"),
+            "tool_data_payload_dump": final_output_state.get("tool_results"),
+            "agent_synthesized_response": final_output_state.get("final_response"),
+            "internal_safety_loop_count": final_output_state.get("loop_count")
         }
     except Exception as err:
-        raise HTTPException(status_code=502, detail=f"Graph orchestration failure: {str(err)}")
+        raise HTTPException(status_code=502, detail=f"Agent graph execution failure: {str(err)}")
+
 
 
 
