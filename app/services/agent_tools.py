@@ -1,4 +1,6 @@
+import asyncio
 from typing import Dict, Any
+from app.services.rag_engine import run_langchain_rag_pipeline
 
 def get_customer_info(customer_id: str) -> Dict[str, Any]:
     """Tool: Fetches account tier and active permissions for validation checks."""
@@ -14,15 +16,32 @@ def get_customer_info(customer_id: str) -> Dict[str, Any]:
 
 
 def search_knowledge_base(query: str) -> Dict[str, Any]:
-    """Tool: Searches verified document snippets for compliance rules."""
-    query_lower = query.lower()
-    
-    if "meal" in query_lower or "food" in query_lower:
-        return {"success": True, "context": "Clause 1.A: Domestic meal caps are restricted to $55.00 USD per individual."}
-    if "hardware" in query_lower or "engineering" in query_lower:
-        return {"success": True, "context": "Clause 2.B: System registration identifier token matches code id-9904."}
+    """
+    Tool: Queries your live production LangChain FAISS + BM25 retriever index.
+    """
+    print(f"🔍 [Tool: Knowledge Base] Querying live FAISS indices for: '{query}'")
+    try:
+        rag_payload = asyncio.run(run_langchain_rag_pipeline(query=query, top_k=2))
+        answer = rag_payload.get("answer", "")
         
-    return {"success": False, "context": "No matching documentation snippets found in data arrays."}
+        if "cannot find the answer" in answer.lower() or not answer.strip():
+            return {
+                "success": False, 
+                "context": "No authoritative matching corporate documentation guidelines located for this query."
+            }
+            
+        return {
+            "success": True,
+            "context": answer,
+            "sources": rag_payload.get("sources", [])
+        }
+        
+    except Exception as err:
+        return {
+            "success": False,
+            "context": f"Internal database connector tool extraction error occurred: {str(err)}",
+            "sources": []
+        }
 
 
 def create_support_ticket(title: str, priority: str) -> Dict[str, Any]:
