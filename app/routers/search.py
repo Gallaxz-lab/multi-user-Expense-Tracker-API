@@ -1,9 +1,12 @@
 from fastapi import APIRouter, UploadFile, File, Query, HTTPException
+from fastapi import Depends
 from typing import Dict, Any
 from app.services.document_processor import process_uploaded_pdf_to_langchain_docs
 from app.services.vector_store import add_docs_to_langchain_retrievers, clear_all_langchain_retrievers
 from app.services.rag_engine import run_langchain_rag_pipeline
 from app.services.graph_builder import compiled_support_graph
+from app.routers.auth import get_current_user 
+
 
 router = APIRouter(prefix="/search", tags=["LangChain RAG Engine"])
 
@@ -51,15 +54,23 @@ def reset_pdf_knowledge_base_indices():
             detail=f"An error occurred while attempting to wipe LangChain knowledge cache layers: {str(err)}"
         )
 
+
 @router.get("/smart-support")
 async def intelligent_support_router_endpoint(
-    query: str = Query(..., min_length=2, description="Test agent failure modes and guardrails resilience parameters")
+    query: str = Query(..., min_length=2, description="Test agent auth tool states"),
+
+    current_user: Any = Depends(get_current_user) 
 ):
-    """API entrypoint executing a safety-hardened tool-calling graph agent architecture."""
     try:
-        # Initialize properties matching our SupportRouterState schema
+        user_context_dict = {
+            "username": current_user.username,
+            "role": getattr(current_user, "role", "Premium"),
+            "is_active": getattr(current_user, "is_active", True)
+        }
+        
         initial_state = {
             "user_query": query,
+            "current_user": user_context_dict, # ✅ PASSING LIVE DB USER TO GRAPH STATE
             "next_step": None,
             "executed_tools": [],
             "tool_results": {},
@@ -73,17 +84,13 @@ async def intelligent_support_router_endpoint(
         final_output_state = await compiled_support_graph.ainvoke(initial_state)
         
         return {
-            "user_query": query,
-            "successful_tools_run": final_output_state.get("executed_tools"),
-            "tool_results_data_dump": final_output_state.get("tool_results"),
-            "system_caught_error_logs": final_output_state.get("tool_error_logs"),
-            "security_breach_blocked": final_output_state.get("security_clearance_blocked"),
-            "human_staff_escalated": final_output_state.get("human_escalation_required"),
-            "agent_response": final_output_state.get("final_response"),
-            "total_iterations_run": final_output_state.get("loop_count")
+            "query": query,
+            "logged_in_username_detected": user_context_dict["username"],
+            "actions_taken_by_agent": final_output_state.get("executed_tools"),
+            "agent_synthesized_response": final_output_state.get("final_response")
         }
     except Exception as err:
-        raise HTTPException(status_code=502, detail=f"Agent system core error: {str(err)}")
+        raise HTTPException(status_code=502, detail=f"Authenticated Agent error: {str(err)}")
 
 
 

@@ -2,6 +2,7 @@ from typing import TypedDict, Optional, List, Dict, Any
 
 class SupportRouterState(TypedDict):
     user_query: str
+    current_user: Dict[str, Any]
     next_step: Optional[str]
     executed_tools: List[str]
     tool_results: Dict[str, Any]

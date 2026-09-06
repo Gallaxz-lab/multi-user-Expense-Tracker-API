@@ -2,29 +2,33 @@ import asyncio
 from typing import Dict, Any
 from app.services.rag_engine import run_langchain_rag_pipeline
 
-def get_customer_info(customer_id: str) -> Dict[str, Any]:
-    """Tool: Fetches customer CRM tiers with strict alphanumeric input validation."""
-    # ─── TOOL INPUT VALIDATION ───
-    if not customer_id or not customer_id.startswith("CUST-"):
+def get_customer_info_authenticated(user_profile: Dict[str, Any]) -> Dict[str, Any]:
+    if not user_profile or "username" not in user_profile:
         return {
             "is_error": True,
-            "error_type": "VALIDATION_ERROR",
-            "message": f"Malformed Tool Input: Identifier '{customer_id}' must begin with 'CUST-' prefix."
+            "error_type": "AUTHENTICATION_ERROR",
+            "message": "Security Verification Failed: No active logged-in user session context found."
         }
     
-    database = {
-        "CUST-101": {"name": "Alice Johnson", "tier": "Premium", "status": "Active", "permission_level": 2},
-        "CUST-202": {"name": "Bob Smith", "tier": "Free", "status": "Suspended", "permission_level": 1}
-    }
+    username = user_profile.get("username")
+    role = user_profile.get("role", "User")
+    is_active = user_profile.get("is_active", True)
     
-    if customer_id not in database:
+    if not is_active:
         return {
             "is_error": True,
-            "error_type": "NOT_FOUND",
-            "message": f"Data Missing Error: Identifier '{customer_id}' does not exist in our user index."
+            "error_type": "ACCOUNT_SUSPENDED",
+            "message": f"Security Block: The account for user '{username}' is currently suspended."
         }
         
-    return {"is_error": False, "data": database[customer_id]}
+    return {
+        "is_error": False, 
+        "data": {
+            "name": username, 
+            "tier": role, 
+            "status": "Active"
+        }
+    }
 
 
 def search_knowledge_base(query: str) -> Dict[str, Any]:
