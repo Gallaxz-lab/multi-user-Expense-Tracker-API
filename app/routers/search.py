@@ -53,31 +53,37 @@ def reset_pdf_knowledge_base_indices():
 
 @router.get("/smart-support")
 async def intelligent_support_router_endpoint(
-    query: str = Query(..., min_length=2, description="Test agent tool iterations")
+    query: str = Query(..., min_length=2, description="Test agent failure modes and guardrails resilience parameters")
 ):
-    """Exposes our multi-step tool-calling LangGraph agent workflow."""
+    """API entrypoint executing a safety-hardened tool-calling graph agent architecture."""
     try:
+        # Initialize properties matching our SupportRouterState schema
         initial_state = {
             "user_query": query,
             "next_step": None,
             "executed_tools": [],
             "tool_results": {},
+            "tool_error_logs": [],
             "loop_count": 0,
+            "security_clearance_blocked": False,
+            "human_escalation_required": False,
             "final_response": None
         }
         
         final_output_state = await compiled_support_graph.ainvoke(initial_state)
         
         return {
-            "query": query,
-            "actions_taken_by_agent": final_output_state.get("executed_tools"),
-            "tool_data_payload_dump": final_output_state.get("tool_results"),
-            "agent_synthesized_response": final_output_state.get("final_response"),
-            "internal_safety_loop_count": final_output_state.get("loop_count")
+            "user_query": query,
+            "successful_tools_run": final_output_state.get("executed_tools"),
+            "tool_results_data_dump": final_output_state.get("tool_results"),
+            "system_caught_error_logs": final_output_state.get("tool_error_logs"),
+            "security_breach_blocked": final_output_state.get("security_clearance_blocked"),
+            "human_staff_escalated": final_output_state.get("human_escalation_required"),
+            "agent_response": final_output_state.get("final_response"),
+            "total_iterations_run": final_output_state.get("loop_count")
         }
     except Exception as err:
-        raise HTTPException(status_code=502, detail=f"Agent graph execution failure: {str(err)}")
-
+        raise HTTPException(status_code=502, detail=f"Agent system core error: {str(err)}")
 
 
 
