@@ -1,6 +1,9 @@
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
+    APP_NAME: str = Field(default="Expense Tracker API")
+    ENVIRONMENT: str = Field(default="development")
     # Your existing database settings
     DB_USER: str
     DB_PASSWORD: str
