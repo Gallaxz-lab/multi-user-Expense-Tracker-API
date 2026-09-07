@@ -1,7 +1,7 @@
 import os
 from typing import List
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from langchain_community.vectorstores import AzureSearch
+from langchain_community.vectorstores import AzureSearch as AzureAISearch
 from langchain_core.documents import Document
 from app.config import settings
 
