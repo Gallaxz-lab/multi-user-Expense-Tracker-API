@@ -64,20 +64,19 @@ async def run_langchain_rag_pipeline(query: str, active_username: str, top_k: in
         azure_results = search_client.search(
             search_text=query,
             vector_queries=[vector_query],
-            filter=tenant_filter_string, 
+            filter=tenant_filter_string,
             top=top_k
         )
         
-
         raw_retrieved_docs = []
         for result in azure_results:
             doc_metadata = {
-                "document_name": result.get("metadata", {}).get("document_name", "Unknown File"),
-                "page_number": int(result.get("metadata", {}).get("page_number", 1)),
-                "azure_blob_url": result.get("metadata", {}).get("azure_blob_url", ""),
-                "owner_username": result.get("metadata", {}).get("owner_username", "")
+                "document_name": result.get("document_name", "Unknown File"),
+                "page_number": int(result.get("page_number", 1)),
+                "azure_blob_url": result.get("azure_blob_url", ""),
+                "owner_username": result.get("owner_username", "")
             }
-            # LangChain vectorstores expect content string to map out of 'content'
+            
             doc = Document(
                 page_content=result.get("content", ""),
                 metadata=doc_metadata
