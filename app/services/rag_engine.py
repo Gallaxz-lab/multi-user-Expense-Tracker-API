@@ -43,59 +43,69 @@ def simulate_cross_encoder_reranker(query: str, documents: List[Any], top_n: int
     return [doc for score, doc in scored_docs[:top_n]]
 
 
+import os
+import json
+from pydantic import BaseModel, Field
+from typing import List, Dict, Any
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import PydanticOutputParser
+from langchain_core.documents import Document
+from app.config import settings
+from app.services.vector_store import get_azure_search_vector_store
+from app.services.model_factory import get_configurable_llm_provider
+
+# (Keep your EnterpriseGroundedResponse, structured_parser, and simulate_cross_encoder_reranker exactly as they are)
+
 async def run_langchain_rag_pipeline(query: str, active_username: str, top_k: int = 4) -> Dict[str, Any]:
-    """[SEARCH/RETRIEVE VIA RAW CLIENT -> RERANK -> LLM GENERATION]"""
+    """[SEARCH/RETRIEVE VIA WRAPPER -> EXTRACT NESTED METADATA -> RERANK -> LLM GENERATION]"""
     vector_store = get_azure_search_vector_store()
     
-    # 1. OData Syntax filter for strict user multitenancy data isolation
     tenant_filter_string = f"owner_username eq '{active_username}'"
     
-    print(f"📡 [RAG LOG] Querying Azure AI Search Cloud for user: '{active_username}'")
+    print(f"📡 [RAG LOG] Querying Azure Cloud Index for user session: '{active_username}'")
     
     try:
-        search_client = vector_store.client
-        
-        query_vector = vector_store.embedding_function.embed_query(query)
-        
-        # Build the native hybrid cloud search definition dict arguments
-        from azure.search.documents.models import VectorizedQuery
-        vector_query = VectorizedQuery(vector=query_vector, k_nearest_neighbors=top_k, fields="content_vector")
-        
-        azure_results = search_client.search(
-            search_text=query,
-            vector_queries=[vector_query],
-            filter=tenant_filter_string,
-            top=top_k
+        raw_results = vector_store.hybrid_search(
+            query=query,
+            k=top_k,
+            filters=tenant_filter_string 
         )
         
         raw_retrieved_docs = []
-        for result in azure_results:
+        for doc in raw_results:
+            meta = doc.metadata if doc.metadata else {}
+            
             doc_metadata = {
-                "document_name": result.get("document_name", "Unknown File"),
-                "page_number": int(result.get("page_number", 1)),
-                "azure_blob_url": result.get("azure_blob_url", ""),
-                "owner_username": result.get("owner_username", "")
+                "document_name": meta.get("document_name", "Unknown File"),
+                "page_number": int(meta.get("page_number", 1)),
+                "azure_blob_url": meta.get("azure_blob_url", ""),
+                "owner_username": meta.get("owner_username", active_username)
             }
             
-            doc = Document(
-                page_content=result.get("content", ""),
+            refined_doc = Document(
+                page_content=doc.page_content,
                 metadata=doc_metadata
             )
-            raw_retrieved_docs.append(doc)
+            raw_retrieved_docs.append(refined_doc)
             
-        print(f"📊 [RAG LOG] Raw chunks pulled safely from Azure Cloud: {len(raw_retrieved_docs)}")
+        print(f"📊 [RAG LOG] Raw chunks pulled successfully from Azure Search: {len(raw_retrieved_docs)}")
 
-        # 2. OPTIMIZATION PHASE: Run Cross-Encoder Reranking
+        if len(raw_retrieved_docs) == 0:
+            return {
+                "ai_generated_answer": "No relevant document chunks found matching your profile permissions context inside the database. Please verify your document upload history.",
+                "is_grounded_validation": False,
+                "search_precision_score": 0.0,
+                "pages_cited_integers": [],
+                "isolated_sources": []
+            }
         optimized_reranked_docs = simulate_cross_encoder_reranker(query, raw_retrieved_docs, top_n=2)
         
-        # Format the text chunks for the prompt template
         context_blocks = []
         for doc in optimized_reranked_docs:
             meta = doc.metadata
             context_blocks.append(f"[File: {meta.get('document_name')} | Page: {meta.get('page_number')}]: {doc.page_content}")
         formatted_context = "\n\n".join(context_blocks)
 
-        # 3. GENERATION PHASE
         active_llm = get_configurable_llm_provider()
         
         system_instruction = (
