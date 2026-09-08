@@ -67,10 +67,13 @@ async def run_langchain_rag_pipeline(query: str, active_username: str, top_k: in
         active_llm = get_configurable_llm_provider()
         
         system_instruction = (
-            "You are an enterprise compliance auditor. Answer the query using ONLY the provided verified context blocks.\n"
-            "Format your final response matching this pattern:\n{format_instructions}\n\n"
+            "You are an enterprise compliance auditor system. Analyze the user question and the provided context blocks.\n"
+            "You must respond with a single JSON object that perfectly matches the following formatting instructions schema rules.\n"
+            "Do not include any conversational introduction phrases or summary paragraphs outside the JSON fields.\n\n"
+            "Formatting Rules:\n{format_instructions}\n\n"
             "Context Blocks:\n{context}"
         )
+
         
         prompt = ChatPromptTemplate.from_messages([
             ("system", system_instruction),

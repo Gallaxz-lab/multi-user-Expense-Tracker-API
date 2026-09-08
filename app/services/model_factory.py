@@ -14,7 +14,8 @@ def get_configurable_llm_provider() -> BaseChatModel:
         return ChatGoogleGenerativeAI(
             model="gemini-3.6-flash",
             google_api_key=settings.GEMINI_API_KEY,
-            temperature=0.1
+            temperature=0.1,
+            model_kwargs={"response_mime_type": "application/json"}
         )
         
     elif provider == "openai":
