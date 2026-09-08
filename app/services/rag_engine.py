@@ -43,19 +43,6 @@ def simulate_cross_encoder_reranker(query: str, documents: List[Any], top_n: int
     return [doc for score, doc in scored_docs[:top_n]]
 
 
-import os
-import json
-from pydantic import BaseModel, Field
-from typing import List, Dict, Any
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import PydanticOutputParser
-from langchain_core.documents import Document
-from app.config import settings
-from app.services.vector_store import get_azure_search_vector_store
-from app.services.model_factory import get_configurable_llm_provider
-
-# (Keep your EnterpriseGroundedResponse, structured_parser, and simulate_cross_encoder_reranker exactly as they are)
-
 async def run_langchain_rag_pipeline(query: str, active_username: str, top_k: int = 4) -> Dict[str, Any]:
     """[SEARCH/RETRIEVE VIA WRAPPER -> EXTRACT NESTED METADATA -> RERANK -> LLM GENERATION]"""
     vector_store = get_azure_search_vector_store()
