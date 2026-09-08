@@ -54,7 +54,7 @@ async def run_langchain_rag_pipeline(query: str, active_username: str, top_k: in
         search_type="hybrid",
         k=top_k,
         search_kwargs={
-            "filter": tenant_filter_string  # Injects metadata security filter safely
+            "filters": tenant_filter_string 
         }
     )
     
