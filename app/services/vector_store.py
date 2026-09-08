@@ -2,8 +2,13 @@ import os
 from typing import List
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores import AzureSearch as AzureAISearch
+from azure.search.documents.indexes.models import SearchFieldDataType
+from langchain_community.vectorstores.azuresearch import CustomField
 from langchain_core.documents import Document
 from app.config import settings
+
+CACHE_DIR = "/tmp/rag_cache"
+os.makedirs(CACHE_DIR, exist_ok=True)
 
 # Initialize your accessible Gemini vector extraction model
 embeddings_engine = GoogleGenerativeAIEmbeddings(
@@ -13,6 +18,33 @@ embeddings_engine = GoogleGenerativeAIEmbeddings(
 
 def get_azure_search_vector_store() -> AzureAISearch:
     """Connects programmatically to your managed cloud vector index on Azure."""
+    
+    custom_index_fields = [
+        CustomField(
+            name="owner_username",
+            type=SearchFieldDataType.String,
+            filterable=True,
+            retrievable=True
+        ),
+        CustomField(
+            name="document_name",
+            type=SearchFieldDataType.String,
+            filterable=True,
+            retrievable=True
+        ),
+        CustomField(
+            name="page_number",
+            type=SearchFieldDataType.Int32,
+            filterable=True,
+            retrievable=True
+        ),
+        CustomField(
+            name="azure_blob_url",
+            type=SearchFieldDataType.String,
+            retrievable=True
+        )
+    ]   
+    
     return AzureAISearch(
         azure_search_endpoint=settings.AZURE_SEARCH_ENDPOINT,
         azure_search_key=settings.AZURE_SEARCH_API_KEY,
