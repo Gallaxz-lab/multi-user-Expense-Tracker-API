@@ -73,7 +73,7 @@ async def run_langchain_rag_pipeline(query: str, active_username: str, top_k: in
             search_text=query,
             vector_queries=[vector_query],
             filter=tenant_filter_string,  # Injected directly into Azure
-            select=["id", "content", "metadata", "owner_username"], # Select fields explicitly
+            select=["id", "content", "metadata"],
             top=top_k
         )
         
