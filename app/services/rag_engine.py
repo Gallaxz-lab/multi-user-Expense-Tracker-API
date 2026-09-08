@@ -47,29 +47,23 @@ async def run_langchain_rag_pipeline(query: str, active_username: str, top_k: in
     
     tenant_filter_string = f"owner_username eq '{active_username}'"
     
-    azure_hybrid_retriever = vector_store.as_retriever(
-        search_type="hybrid",
-        search_kwargs={
-            "k": top_k,
-            "filter": tenant_filter_string 
-        }
-    )
-    
     try:
-        # 1. RAW CLOUD RETRIEVAL PHASE (Completely isolated from LLM generation logic)
-        raw_retrieved_docs = azure_hybrid_retriever.invoke(query)
+        print(f"📡 Querying Azure Cloud Index directly using safe manual parameter mappings...")
         
-        # 2. OPTIMIZATION PHASE: Run Cross-Encoder Reranking
+        raw_retrieved_docs = vector_store.hybrid_search(
+            query=query,
+            k=top_k,
+            filter=tenant_filter_string
+        )
+        
         optimized_reranked_docs = simulate_cross_encoder_reranker(query, raw_retrieved_docs, top_n=2)
         
-        # Format the text chunks for the prompt template
         context_blocks = []
         for doc in optimized_reranked_docs:
             meta = doc.metadata
             context_blocks.append(f"[File: {meta.get('document_name')} | Page: {meta.get('page_number')}]: {doc.page_content}")
         formatted_context = "\n\n".join(context_blocks)
 
-        # 3. GENERATION PHASE: Initialize the configurable LLM engine provider
         active_llm = get_configurable_llm_provider()
         
         system_instruction = (
@@ -86,11 +80,8 @@ async def run_langchain_rag_pipeline(query: str, active_username: str, top_k: in
         final_prompt = prompt.partial(format_instructions=structured_parser.get_format_instructions())
         rag_chain = final_prompt | active_llm | structured_parser
 
-        # Execute generation tracking block pass
         structured_output = await rag_chain.ainvoke({"context": formatted_context, "question": query})
 
-        # ─── KEEP RETRIEVED SOURCES SEPARATE FROM GENERATED ANSWERS ───
-        # Keeping sources in their own independent data arrays prevents prompt contamination
         isolated_sources_payload = []
         for doc in optimized_reranked_docs:
             isolated_sources_payload.append({
@@ -105,7 +96,7 @@ async def run_langchain_rag_pipeline(query: str, active_username: str, top_k: in
             "is_grounded_validation": structured_output.is_answer_fully_grounded,
             "search_precision_score": structured_output.confidence_score,
             "pages_cited_integers": structured_output.citations_page_list,
-            "isolated_sources": isolated_sources_payload # Kept completely separate
+            "isolated_sources": isolated_sources_payload
         }
 
     except Exception as err:
