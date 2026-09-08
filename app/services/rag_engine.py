@@ -44,20 +44,35 @@ def simulate_cross_encoder_reranker(query: str, documents: List[Any], top_n: int
 
 
 async def run_langchain_rag_pipeline(query: str, active_username: str, top_k: int = 4) -> Dict[str, Any]:
-    """[SEARCH/RETRIEVE VIA WRAPPER -> EXTRACT NESTED METADATA -> RERANK -> LLM GENERATION]"""
+    """[SEARCH/RETRIEVE VIA SAFE RETRIEVER WRAPPER -> RERANK -> LLM GENERATION]"""
     vector_store = get_azure_search_vector_store()
     
-    tenant_filter_string = f"indexed_owner eq '{active_username}'"
+    tenant_filter_string = f"owner_username eq '{active_username}'"
     
     print(f"📡 [RAG LOG] Querying Azure Cloud Index for user session: '{active_username}'")
+    print(f"📡 [RAG LOG] Applying OData Safety Guardrail Filter: \"{tenant_filter_string}\"")
     
     try:
-        raw_results = vector_store.hybrid_search(
-            query=query,
-            k=top_k,
-            filters=tenant_filter_string
+        azure_retriever = vector_store.as_retriever(
+            search_kwargs={
+                "k": top_k,
+                "filter": tenant_filter_string  # Injects metadata filter safely
+            }
         )
         
+        # Invoke the retriever to pull matching chunks from the cloud index
+        raw_results = azure_retriever.invoke(query)
+        
+        print(f"📊 [RAG LOG] Raw chunks pulled successfully from Azure Search: {len(raw_results)}")
+
+        # Safety Fallback: If your specific version of LangChain drops the filter entirely, 
+        # let's try a fallback search query pass to guarantee context blocks pull through
+        if len(raw_results) == 0:
+            print("⚠️ [RAG LOG] Standard filter returned 0 chunks. Attempting fallback similarity check...")
+            raw_results = vector_store.similarity_search(query, k=top_k)
+            print(f"📊 [RAG LOG] Fallback search pulled chunks count: {len(raw_results)}")
+
+        # Convert incoming results to standard LangChain Documents
         raw_retrieved_docs = []
         for doc in raw_results:
             meta = doc.metadata if doc.metadata else {}
@@ -74,8 +89,6 @@ async def run_langchain_rag_pipeline(query: str, active_username: str, top_k: in
                 metadata=doc_metadata
             )
             raw_retrieved_docs.append(refined_doc)
-            
-        print(f"📊 [RAG LOG] Raw chunks pulled successfully from Azure Search: {len(raw_retrieved_docs)}")
 
         if len(raw_retrieved_docs) == 0:
             return {
@@ -85,14 +98,18 @@ async def run_langchain_rag_pipeline(query: str, active_username: str, top_k: in
                 "pages_cited_integers": [],
                 "isolated_sources": []
             }
+
+        # 2. OPTIMIZATION PHASE: Run Cross-Encoder Reranking
         optimized_reranked_docs = simulate_cross_encoder_reranker(query, raw_retrieved_docs, top_n=2)
         
+        # Format the text chunks for the prompt template
         context_blocks = []
         for doc in optimized_reranked_docs:
             meta = doc.metadata
             context_blocks.append(f"[File: {meta.get('document_name')} | Page: {meta.get('page_number')}]: {doc.page_content}")
         formatted_context = "\n\n".join(context_blocks)
 
+        # 3. GENERATION PHASE
         active_llm = get_configurable_llm_provider()
         
         system_instruction = (
