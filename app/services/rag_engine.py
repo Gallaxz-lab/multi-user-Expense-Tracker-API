@@ -45,18 +45,13 @@ async def run_langchain_rag_pipeline(query: str, active_username: str, top_k: in
     """[SEARCH/RETRIEVE -> METADATA FILTER -> RERANK -> LLM GENERATION]"""
     vector_store = get_azure_search_vector_store()
     
-    # ─── ADD METADATA FILTERING ───
-    # Enforces strict multitenancy constraints using safe OData expression strings.
-    # This prevents users from ever searching or seeing another user's files.
     tenant_filter_string = f"owner_username eq '{active_username}'"
     
-    # ─── IMPROVE HYBRID SEARCH ───
-    # Requests Azure AI Search to run full-text keywords and vector metrics together
     azure_hybrid_retriever = vector_store.as_retriever(
         search_type="hybrid",
         search_kwargs={
             "k": top_k,
-            "filter": tenant_filter_string # Injects metadata security filter restriction
+            "filter": tenant_filter_string 
         }
     )
     
