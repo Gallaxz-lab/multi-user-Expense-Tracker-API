@@ -13,13 +13,18 @@ from app.routers.auth import get_current_user
 router = APIRouter(prefix="/search", tags=["Enterprise Cloud RAG Hub"])
 
 @router.post("/upload-pdf")
-async def upload_and_index_to_azure_cloud(file: UploadFile = File(...)):
-    """Uploads raw files to Azure Storage and writes vector chunks to Azure AI Search."""
+async def upload_and_index_to_azure_cloud(
+    file: UploadFile = File(...),
+    current_user: Any = Depends(get_current_user) # Extracts the logged-in user profile
+):
+    """Securely uploads raw files to Azure Storage and writes user-isolated chunks to Azure AI Search."""
     if not file.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only standard PDF assets allowed.")
     try:
         file_bytes = await file.read()
-        langchain_documents = process_uploaded_pdf_to_langchain_docs(file_bytes, file.filename)
+        
+        # Injects current_user.username into metadata properties on ingestion
+        langchain_documents = process_uploaded_pdf_to_langchain_docs(file_bytes, file.filename, current_user.username)
         
         if not langchain_documents:
             return {"message": "No extractable sections captured."}
@@ -28,6 +33,7 @@ async def upload_and_index_to_azure_cloud(file: UploadFile = File(...)):
         return {
             "status": "SUCCESS",
             "filename": file.filename, 
+            "indexed_owner": current_user.username,
             "total_chunks_pushed_to_azure_search": len(langchain_documents)
         }
     except Exception as err:
@@ -37,14 +43,29 @@ async def upload_and_index_to_azure_cloud(file: UploadFile = File(...)):
 @router.get("/ask")
 async def query_azure_rag_pipeline_with_structured_output(
     query: str = Query(..., min_length=2, description="Ask questions about your uploaded cloud documents"),
-    top_k: int = Query(3, ge=1, le=5)
+    top_k: int = Query(4, ge=1, le=5),
+    current_user: Any = Depends(get_current_user) # Authenticates session identity
 ) -> Dict[str, Any]:
-    """Queries Azure AI Search and generates a structured answer via Gemini with page citations."""
+    """Queries Azure AI Search using multitenant metadata filtering and generates a clean answer via your configurable LLM."""
     try:
-        result = await run_langchain_rag_pipeline(query=query, top_k=top_k)
+        # Passes active username to enforce strict tenant filter constraints on retrieval
+        result = await run_langchain_rag_pipeline(query=query, active_username=current_user.username, top_k=top_k)
         return result
     except Exception as err:
-        raise HTTPException(status_code=502, detail=f"Pipeline error: {str(err)}")
+        raise HTTPException(status_code=502, detail=f"Pipeline execution error: {str(err)}")
+
+
+@router.delete("/reset-knowledge-base")
+def reset_pdf_knowledge_base_indices(current_user: Any = Depends(get_current_user)):
+    """Manually flushes all indexed records from Azure AI Search."""
+    try:
+        clear_all_langchain_retrievers()
+        return {
+            "status": "SUCCESS",
+            "message": "All text chunks and vector embeddings have been securely wiped from your Azure AI Search cloud index."
+        }
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"An error occurred while attempting to wipe cloud caches: {str(err)}")
 
 
 @router.get("/smart-support")
@@ -94,19 +115,3 @@ async def intelligent_support_router_endpoint(
         }
     except Exception as err:
         raise HTTPException(status_code=502, detail=f"Agent system core error: {str(err)}")
-
-
-@router.delete("/reset-knowledge-base")
-def reset_pdf_knowledge_base_indices():
-    """[CLEAR CLOUD DATABASE] Manually flushes all indexed records from Azure AI Search."""
-    try:
-        clear_all_langchain_retrievers()
-        return {
-            "status": "SUCCESS",
-            "message": "All text chunks and vector embeddings have been securely wiped from your Azure AI Search cloud index."
-        }
-    except Exception as err:
-        raise HTTPException(
-            status_code=500, 
-            detail=f"An error occurred while attempting to wipe Azure AI Search knowledge caches: {str(err)}"
-        )
