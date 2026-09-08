@@ -47,7 +47,7 @@ async def run_langchain_rag_pipeline(query: str, active_username: str, top_k: in
     """[SEARCH/RETRIEVE VIA WRAPPER -> EXTRACT NESTED METADATA -> RERANK -> LLM GENERATION]"""
     vector_store = get_azure_search_vector_store()
     
-    tenant_filter_string = f"metadata/owner_username eq '{active_username}'"
+    tenant_filter_string = f"owner_username eq '{active_username}'"
     
     print(f"📡 [RAG LOG] Querying Azure Cloud Index for user session: '{active_username}'")
     
@@ -55,7 +55,7 @@ async def run_langchain_rag_pipeline(query: str, active_username: str, top_k: in
         raw_results = vector_store.hybrid_search(
             query=query,
             k=top_k,
-            filters=tenant_filter_string 
+            filters=tenant_filter_string
         )
         
         raw_retrieved_docs = []
