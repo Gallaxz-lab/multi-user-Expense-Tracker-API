@@ -12,7 +12,7 @@ def get_configurable_llm_provider() -> BaseChatModel:
         if not settings.GEMINI_API_KEY:
             raise ValueError("Configuration Error: GEMINI_API_KEY variable is missing.")
         return ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
+            model="gemini-3.6-flash",
             google_api_key=settings.GEMINI_API_KEY,
             temperature=0.1
         )
