@@ -1,9 +1,11 @@
+import os
 import json
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
 from app.config import settings
+from langchain_core.documents import Document
 from app.services.vector_store import get_azure_search_vector_store
 from app.services.model_factory import get_configurable_llm_provider
 
@@ -42,39 +44,50 @@ def simulate_cross_encoder_reranker(query: str, documents: List[Any], top_n: int
 
 
 async def run_langchain_rag_pipeline(query: str, active_username: str, top_k: int = 4) -> Dict[str, Any]:
-    """[SEARCH/RETRIEVE -> DIAGNOSTIC PRINT LOGS -> METADATA FILTER -> RERANK -> LLM GENERATION]"""
+    """[SEARCH/RETRIEVE VIA RAW CLIENT -> RERANK -> LLM GENERATION]"""
     vector_store = get_azure_search_vector_store()
     
+    # 1. OData Syntax filter for strict user multitenancy data isolation
     tenant_filter_string = f"owner_username eq '{active_username}'"
     
-    print(f"📡 [RAG DIAGNOSTIC LOG] Target User Querying Service: '{active_username}'")
-    print(f"📡 [RAG DIAGNOSTIC LOG] Compiled OData Expression Sent to Azure: \"{tenant_filter_string}\"")
-    
-    azure_hybrid_retriever = vector_store.as_retriever(
-        search_type="hybrid",
-        k=top_k,
-        search_kwargs={
-            "filters": tenant_filter_string 
-        }
-    )
+    print(f"📡 [RAG LOG] Querying Azure AI Search Cloud for user: '{active_username}'")
     
     try:
-        # 1. RAW CLOUD RETRIEVAL PHASE
-        raw_retrieved_docs = azure_hybrid_retriever.invoke(query)
+        search_client = vector_store.client
         
-        # Prints out exactly how many chunks Azure returned before the code continues!
-        print(f"📊 [RAG DIAGNOSTIC LOG] Raw chunks pulled from Azure AI Search Cloud: {len(raw_retrieved_docs)}")
+        query_vector = vector_store.embedding_function.embed_query(query)
         
-        if len(raw_retrieved_docs) == 0:
-            print("⚠️ [RAG DIAGNOSTIC WARNING] Azure returned 0 nodes! Temporary bypassing filter to confirm index records exist...")
-            # Fallback bypass test loop: Check if documents exist if we lift the security shield
-            test_retriever = vector_store.as_retriever(search_type="hybrid", k=top_k)
-            test_docs = test_retriever.invoke(query)
-            print(f"📊 [RAG DIAGNOSTIC LOG] Global index document count without filter shield: {len(test_docs)}")
+        # Build the native hybrid cloud search definition dict arguments
+        from azure.search.documents.models import VectorizedQuery
+        vector_query = VectorizedQuery(vector=query_vector, k_nearest_neighbors=top_k, fields="content_vector")
+        
+        azure_results = search_client.search(
+            search_text=query,
+            vector_queries=[vector_query],
+            filter=tenant_filter_string, 
+            top=top_k
+        )
+        
+
+        raw_retrieved_docs = []
+        for result in azure_results:
+            doc_metadata = {
+                "document_name": result.get("metadata", {}).get("document_name", "Unknown File"),
+                "page_number": int(result.get("metadata", {}).get("page_number", 1)),
+                "azure_blob_url": result.get("metadata", {}).get("azure_blob_url", ""),
+                "owner_username": result.get("metadata", {}).get("owner_username", "")
+            }
+            # LangChain vectorstores expect content string to map out of 'content'
+            doc = Document(
+                page_content=result.get("content", ""),
+                metadata=doc_metadata
+            )
+            raw_retrieved_docs.append(doc)
+            
+        print(f"📊 [RAG LOG] Raw chunks pulled safely from Azure Cloud: {len(raw_retrieved_docs)}")
 
         # 2. OPTIMIZATION PHASE: Run Cross-Encoder Reranking
         optimized_reranked_docs = simulate_cross_encoder_reranker(query, raw_retrieved_docs, top_n=2)
-        print(f"📊 [RAG DIAGNOSTIC LOG] Optimized chunks remaining after Cross-Encoder Rerank: {len(optimized_reranked_docs)}")
         
         # Format the text chunks for the prompt template
         context_blocks = []
