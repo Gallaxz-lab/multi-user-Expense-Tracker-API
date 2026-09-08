@@ -2,8 +2,10 @@ import os
 from typing import List
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores import AzureSearch as AzureAISearch
-from azure.search.documents.indexes.models import SearchFieldDataType
-from langchain_community.vectorstores.azuresearch import CustomField
+from azure.search.documents.indexes.models import (
+    SearchFieldDataType,
+    SimpleField,  
+)
 from langchain_core.documents import Document
 from app.config import settings
 
@@ -19,26 +21,27 @@ embeddings_engine = GoogleGenerativeAIEmbeddings(
 def get_azure_search_vector_store() -> AzureAISearch:
     """Connects programmatically to your managed cloud vector index on Azure."""
     
+    # Use SimpleField for metadata filtering/retrieval 
     custom_index_fields = [
-        CustomField(
+        SimpleField(
             name="owner_username",
             type=SearchFieldDataType.String,
             filterable=True,
             retrievable=True
         ),
-        CustomField(
+        SimpleField(
             name="document_name",
             type=SearchFieldDataType.String,
             filterable=True,
             retrievable=True
         ),
-        CustomField(
+        SimpleField(
             name="page_number",
             type=SearchFieldDataType.Int32,
             filterable=True,
             retrievable=True
         ),
-        CustomField(
+        SimpleField(
             name="azure_blob_url",
             type=SearchFieldDataType.String,
             retrievable=True
@@ -49,7 +52,8 @@ def get_azure_search_vector_store() -> AzureAISearch:
         azure_search_endpoint=settings.AZURE_SEARCH_ENDPOINT,
         azure_search_key=settings.AZURE_SEARCH_API_KEY,
         index_name=settings.AZURE_SEARCH_INDEX_NAME,
-        embedding_function=embeddings_engine
+        embedding_function=embeddings_engine,
+        fields=custom_index_fields  #  FIXED: Pass fields into the constructor
     )
 
 def add_docs_to_langchain_retrievers(documents: List[Document]):
