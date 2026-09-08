@@ -53,7 +53,7 @@ async def run_langchain_rag_pipeline(query: str, active_username: str, top_k: in
         raw_retrieved_docs = vector_store.hybrid_search(
             query=query,
             k=top_k,
-            filter=tenant_filter_string
+            filters=tenant_filter_string
         )
         
         optimized_reranked_docs = simulate_cross_encoder_reranker(query, raw_retrieved_docs, top_n=2)
