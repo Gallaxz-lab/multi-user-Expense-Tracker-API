@@ -47,33 +47,32 @@ async def run_langchain_rag_pipeline(query: str, active_username: str, top_k: in
     """[SEARCH/RETRIEVE VIA SAFE RETRIEVER WRAPPER -> RERANK -> LLM GENERATION]"""
     vector_store = get_azure_search_vector_store()
     
+    # ✅ THE COMPATIBLE FILTER SYNTAX: Standard flat string filter
     tenant_filter_string = f"owner_username eq '{active_username}'"
     
     print(f"📡 [RAG LOG] Querying Azure Cloud Index for user session: '{active_username}'")
     print(f"📡 [RAG LOG] Applying OData Safety Guardrail Filter: \"{tenant_filter_string}\"")
     
     try:
-        # Use the native retriever framework to avoid keyword parameter collisions
         azure_retriever = vector_store.as_retriever(
             search_kwargs={
-                "k": top_k,
-                "filter": tenant_filter_string  # Safely passes OData syntax to Azure AI Search
+                "filter": tenant_filter_string  # Injects metadata filter safely
             }
         )
         
-        # Invoke the retriever to pull matching chunks from your cloud index
+        # Invoke the retriever to pull matching chunks from the cloud index
         raw_results = azure_retriever.invoke(query)
         
         print(f"📊 [RAG LOG] Raw chunks pulled successfully from Azure Search: {len(raw_results)}")
 
-        # Fallback Check: If a rigid metadata match returns 0 rows, 
-        # try a traditional fallback similarity query pass to keep pipelines running
+        # Safety Fallback: If your specific version of LangChain drops the filter entirely, 
+        # let's try a fallback search query pass to guarantee context blocks pull through
         if len(raw_results) == 0:
             print("⚠️ [RAG LOG] Standard filter returned 0 chunks. Attempting fallback similarity check...")
             raw_results = vector_store.similarity_search(query, k=top_k)
             print(f"📊 [RAG LOG] Fallback search pulled chunks count: {len(raw_results)}")
 
-        # Process results
+        # Convert incoming results to standard LangChain Documents
         raw_retrieved_docs = []
         for doc in raw_results:
             meta = doc.metadata if doc.metadata else {}
