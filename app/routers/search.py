@@ -44,15 +44,15 @@ async def upload_and_index_to_azure_cloud(
 async def query_azure_rag_pipeline_with_structured_output(
     query: str = Query(..., min_length=2, description="Ask questions about your uploaded cloud documents"),
     top_k: int = Query(4, ge=1, le=5),
-    current_user: Any = Depends(get_current_user) # Authenticates session identity
+    current_user: Any = Depends(get_current_user)
 ) -> Dict[str, Any]:
-    """Queries Azure AI Search using multitenant metadata filtering and generates a clean answer via your configurable LLM."""
+    """Queries Azure AI Search with metadata filters and runs an observability-tracked generation pass."""
     try:
-        # Passes active username to enforce strict tenant filter constraints on retrieval
         result = await run_langchain_rag_pipeline(query=query, active_username=current_user.username, top_k=top_k)
+        print(f"🏁 [Request Completed] ID: {result.get('observability_request_id')} | Successfully generated response back to user.")
         return result
     except Exception as err:
-        raise HTTPException(status_code=502, detail=f"Pipeline execution error: {str(err)}")
+        raise HTTPException(status_code=502, detail=f"Pipeline exception: {str(err)}")
 
 
 @router.delete("/reset-knowledge-base")
