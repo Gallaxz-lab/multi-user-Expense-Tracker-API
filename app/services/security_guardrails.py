@@ -8,21 +8,20 @@ security_bearer = HTTPBearer()
 
 user_rate_limit_buckets: Dict[str, Tuple[float, float]] = {} # {username: (last_check_time, current_tokens)}
 
-def check_rate_limiting_guardrail(username: str, max_tokens: float = 5.0, refill_rate_per_sec: float = 0.5):
-    """
-    Implements a strict token bucket limit.
-    Default: Max 5 bursts, refills 1 token every 2 seconds.
-    """
+def check_rate_limiting_guardrail(username: str, max_tokens: float = 2.0, refill_rate_per_sec: float = 0.1):
+    if not username or username == "Unknown User":
+        raise HTTPException(
+            status_code=401,
+            detail="Not Authenticated: Safe block triggered due to missing user context token properties."
+        )
     current_time = time.time()
     if username not in user_rate_limit_buckets:
         user_rate_limit_buckets[username] = (current_time, max_tokens)
         return
-
     last_check, tokens = user_rate_limit_buckets[username]
     elapsed = current_time - last_check
     refilled_tokens = tokens + (elapsed * refill_rate_per_sec)
     tokens = min(max_tokens, refilled_tokens)
-    
     if tokens < 1.0:
         print(f"⚠️ [Security Alarm] Rate limit tripped for user: '{username}'!")
         raise HTTPException(
@@ -30,7 +29,6 @@ def check_rate_limiting_guardrail(username: str, max_tokens: float = 5.0, refill
             detail="Too Many Requests: API speed cap exceeded. Please pace your communication loops."
         )
     user_rate_limit_buckets[username] = (current_time, tokens - 1.0)
-
 
 def sanitize_prompt_injection_guardrail(user_input: str) -> str:
     """Blocks adversarial payload patterns attempting to manipulate system instructions."""

@@ -63,20 +63,20 @@ async def upload_and_index_to_azure_cloud(
 # =====================================================================
 @router.get("/ask")
 async def query_azure_rag_pipeline_with_structured_output(
-    current_user: Any = Depends(get_current_user), # 🔐 AUTHENTICATION REQUIRED
-    input_data: UserSupportQueryInputSchema = Depends(), # 🛡️ VALIDATE USER INPUT
-    top_k: int = Query(4, ge=1, le=5), # 🛡️ VALIDATE TOOL ARGUMENTS LIMIT RANGE
+    current_user: Any = Depends(get_current_user),
+    input_data: UserSupportQueryInputSchema = Depends(),
+    top_k: int = Query(4, ge=1, le=5)
 ) -> Dict[str, Any]:
-    """Queries Azure Search using strict input sanitization and prompt injection shields."""
     
-    # ⏱️ RATE LIMITING PROTECTION CHECK
-    check_rate_limiting_guardrail(current_user.username)
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
     
-    # 🛡️ PROMPT INJECTION PROTECTION SHIELD ACTIVATION
+    username = getattr(current_user, "username", "Unknown User")
+    check_rate_limiting_guardrail(username)
     clean_user_query = sanitize_prompt_injection_guardrail(input_data.query)
     
     try:
-        result = await run_langchain_rag_pipeline(query=clean_user_query, active_username=current_user.username, top_k=top_k)
+        result = await run_langchain_rag_pipeline(query=clean_user_query, active_username=username, top_k=top_k)
         return result
     except Exception:
         raise HTTPException(status_code=502, detail="Isolated system retrieval exception logged.")
@@ -87,20 +87,19 @@ async def query_azure_rag_pipeline_with_structured_output(
 # =====================================================================
 @router.get("/smart-support")
 async def intelligent_support_router_endpoint(
-    current_user: Any = Depends(get_current_user),     # 🔐 AUTHENTICATION REQUIRED
-    input_data: UserSupportQueryInputSchema = Depends(), # 🛡️ VALIDATE USER INPUT
+    current_user: Any = Depends(get_current_user),
+    input_data: UserSupportQueryInputSchema = Depends()
 ):
-    """API entrypoint executing a safety-hardened tool-calling graph agent architecture."""
     
-    # ⏱️ RATE LIMITING PROTECTION CHECK
-    check_rate_limiting_guardrail(current_user.username)
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+        
+    username = getattr(current_user, "username", "Unknown User")
+    check_rate_limiting_guardrail(username)
     
-    # 🛡️ PROMPT INJECTION PROTECTION SHIELD ACTIVATION
     clean_user_query = sanitize_prompt_injection_guardrail(input_data.query)
     
     try:
-        # Extract live authenticated details directly out of your user database table record profile
-        username = getattr(current_user, "username", current_user.get("username") if isinstance(current_user, dict) else "Unknown User")
         role = getattr(current_user, "role", "User")
         is_active = getattr(current_user, "is_active", True)
         
@@ -110,9 +109,8 @@ async def intelligent_support_router_endpoint(
             "is_active": is_active
         }
         
-        # Initialize properties matching our SupportRouterState schema
         initial_state = {
-            "user_query": clean_user_query, # Pass cleansed sanitized query string lines
+            "user_query": clean_user_query,
             "current_user": user_context_dict,
             "next_step": None,
             "executed_tools": [],
