@@ -7,7 +7,7 @@ import time
 from fastapi import HTTPException
 from app.database.connection import get_db
 from app.schemas.expense import DBRateLimit
-
+from app.database.connection import SessionLocal 
 
 # File-backed shared token bucket memory storage path to link multiple cloud worker processes
 SHARED_LIMIT_FILE = "/tmp/render_shared_rate_limits.json"
