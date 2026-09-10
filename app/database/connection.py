@@ -34,9 +34,5 @@ def get_db():
     db = SessionLocal()
     try:
         yield db
-        db.commit()  # Automatically save changes if no exceptions happen
-    except Exception:
-        db.rollback()  # Automatically roll back row operations if an error occurs
-        raise
     finally:
-        db.close()  # Safely disconnect to keep connection pools clean
+        db.close()
