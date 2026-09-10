@@ -1,4 +1,6 @@
 import time
+import traceback
+import re
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any
 from langchain_core.prompts import ChatPromptTemplate
@@ -171,7 +173,23 @@ async def run_langchain_rag_pipeline(query: str, active_username: str, top_k: in
                 "transaction_cost_usd": f"${trace_metrics['estimated_cost_usd']:.7f}"
             }
         }
+        
+    except Exception as internal_crash_err:
 
+        raw_error_log_string = str(internal_crash_err)
+        clean_log = re.sub(r"AccountKey=[\w+/=]+", "AccountKey=[REDACTED]", raw_error_log_string)
+        clean_log = re.sub(r"api-key=[\w]+", "api-key=[REDACTED]", clean_log)
+        
+        print(f"❌ [Internal Server Error Log] Cleansed Trace: {clean_log}")
+    
+        return {
+            "ai_generated_answer": "An isolated enterprise communication exception occurred. The operation details have been logged securely for supervisor evaluation.",
+            "is_grounded_validation": False,
+            "search_precision_score": 0.0,
+            "pages_cited_integers": [],
+            "isolated_sources": []
+        }
+        
     except Exception as err:
         trace_metrics["errors_logged"].append(str(err))
         trace_metrics["elapsed_seconds"] = time.time() - start_time
