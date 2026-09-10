@@ -1,8 +1,24 @@
+from typing import TypedDict, Optional, List, Dict, Any
 from pydantic import BaseModel, Field, field_validator
 import re
 
+# ─── 1. YOUR ORIGINAL LANGGRAPH STATE DICTIONARY (KEEP THIS!) ───
+class SupportRouterState(TypedDict):
+    user_query: str
+    current_user: Dict[str, Any]
+    next_step: Optional[str]
+    executed_tools: List[str]
+    tool_results: Dict[str, Any]
+    tool_error_logs: List[str]
+    loop_count: int
+    security_clearance_blocked: bool
+    human_escalation_required: bool
+    final_response: Optional[str]
+
+
+# ─── 2. NEW FASTAPI INPUT SANITIZER SCHEAMA (ADD THIS BELOW!) ───
 class UserSupportQueryInputSchema(BaseModel):
-    """Strict Pydantic input sanitizer schema ensuring structured argument validity."""
+    """Strict Pydantic input sanitizer ensuring request validity at the API gateway."""
     query: str = Field(..., min_length=3, max_length=500, description="Conversational query payload text")
     
     @field_validator("query")
@@ -13,6 +29,6 @@ class UserSupportQueryInputSchema(BaseModel):
         if not stripped:
             raise ValueError("Query string element cannot be blank or contain only space characters.")
             
-        # Strip potential HTML script tags to prevent Cross-Site Scripting injections
+        # Strip potential HTML script tags to prevent Cross-Site Scripting (XSS) injections
         sanitized = re.sub(r"<script.*?>.*?</script.*?>", "", stripped, flags=re.IGNORECASE)
         return sanitized
