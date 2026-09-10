@@ -8,7 +8,6 @@ from app.config import settings
 from app.services.vector_store import get_azure_search_vector_store
 from app.services.model_factory import get_configurable_llm_provider
 
-# Import our new Observability utilities
 from app.services.observability import (
     generate_request_id,
     estimate_token_count,
@@ -48,7 +47,7 @@ async def run_langchain_rag_pipeline(query: str, active_username: str, top_k: in
         "user": active_username,
         "user_query": query,
         "model_provider": settings.LLM_PROVIDER,
-        "model_name": "gemini-2.5-flash" if settings.LLM_PROVIDER == "gemini" else "gpt-4o-mini",
+        "model_name": "gemini-3.6-flash" if settings.LLM_PROVIDER == "gemini" else "gpt-4o-mini",
         "raw_chunks_retrieved": 0,
         "reranked_chunks_selected": 0,
         "input_tokens": 0,
