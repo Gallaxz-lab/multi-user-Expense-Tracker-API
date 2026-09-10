@@ -63,9 +63,9 @@ async def upload_and_index_to_azure_cloud(
 # =====================================================================
 @router.get("/ask")
 async def query_azure_rag_pipeline_with_structured_output(
+    current_user: Any = Depends(get_current_user), # 🔐 AUTHENTICATION REQUIRED
     input_data: UserSupportQueryInputSchema = Depends(), # 🛡️ VALIDATE USER INPUT
     top_k: int = Query(4, ge=1, le=5), # 🛡️ VALIDATE TOOL ARGUMENTS LIMIT RANGE
-    current_user: Any = Depends(get_current_user) # 🔐 AUTHENTICATION REQUIRED
 ) -> Dict[str, Any]:
     """Queries Azure Search using strict input sanitization and prompt injection shields."""
     
@@ -87,8 +87,8 @@ async def query_azure_rag_pipeline_with_structured_output(
 # =====================================================================
 @router.get("/smart-support")
 async def intelligent_support_router_endpoint(
+    current_user: Any = Depends(get_current_user),     # 🔐 AUTHENTICATION REQUIRED
     input_data: UserSupportQueryInputSchema = Depends(), # 🛡️ VALIDATE USER INPUT
-    current_user: Any = Depends(get_current_user) # 🔐 AUTHENTICATION REQUIRED
 ):
     """API entrypoint executing a safety-hardened tool-calling graph agent architecture."""
     
