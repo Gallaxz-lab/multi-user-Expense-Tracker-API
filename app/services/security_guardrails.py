@@ -43,22 +43,27 @@ def check_rate_limiting_guardrail(username: str, max_tokens: float = 2.0, refill
 
     current_time = time.time()
 
-    with get_db() as db:
+    db = SessionLocal()
+    try:
+        # 🔍 Look up your rate limiting row properties
         user_record = db.query(DBRateLimit).filter(DBRateLimit.username == username).first()
         
         if not user_record:
             new_limit = DBRateLimit(
                 username=username,
                 last_check_time=current_time,
-                current_tokens=max_tokens - 1.0
+                current_tokens=max_tokens - 1.0  # Spend first token instantly
             )
             db.add(new_limit)
+            db.commit()  # Explicitly commit database rows safely
             return
 
+        # Calculate refilled tokens token values over time deltas
         elapsed_seconds = current_time - user_record.last_check_time
         refilled_tokens = user_record.current_tokens + (elapsed_seconds * refill_rate_per_sec)
         updated_tokens = min(max_tokens, refilled_tokens)
         
+        # 🛑 SPEED LIMIT SHIELD TRIGGER: Block users with less than 1 token
         if updated_tokens < 1.0:
             print(f"🚨 [POSTGRESQL RATE LIMIT ALARM] Persistent speed wall tripped for user: '{username}'!")
             raise HTTPException(
@@ -66,12 +71,23 @@ def check_rate_limiting_guardrail(username: str, max_tokens: float = 2.0, refill
                 detail="Too Many Requests: API speed cap exceeded. Please pace your communication loops."
             )
             
+        # Spend 1 token and update values
         user_record.last_check_time = current_time
         user_record.current_tokens = updated_tokens - 1.0
         db.add(user_record)
+        db.commit()  # Explicitly commit database rows safely
         
-    print(f"🔒 Security Guardrail: Spent 1 token for user '{username}'. Tokens remaining: {updated_tokens - 1.0:.2f}")
+        print(f"🔒 Security Guardrail: Spent 1 token for user '{username}'. Tokens remaining: {updated_tokens - 1.0:.2f}")
 
+    except HTTPException as handled_api_err:
+        db.rollback()  # Rollback transactional items if rate limit trips
+        raise handled_api_err
+    except Exception as e:
+        db.rollback()  # Rollback row mutations if an internal exception occurs
+        print(f"❌ [Limiter Exception]: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal tracking limiter exception.")
+    finally:
+        db.close() 
 
 def sanitize_prompt_injection_guardrail(user_input: str) -> str:
     """Blocks adversarial payload patterns attempting to manipulate system instructions."""
