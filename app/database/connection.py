@@ -3,6 +3,7 @@ import urllib.parse
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.exc import OperationalError
+from contextlib import contextmanager 
 
 from app.config import settings
 
@@ -30,9 +31,14 @@ except OperationalError as e:
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+@contextmanager
 def get_db():
     db = SessionLocal()
     try:
         yield db
+        db.commit()  # Automatically save changes if no exceptions happen
+    except Exception:
+        db.rollback()  # Automatically roll back row operations if an error occurs
+        raise
     finally:
-        db.close()
+        db.close()  # Safely disconnect to keep connection pools clean

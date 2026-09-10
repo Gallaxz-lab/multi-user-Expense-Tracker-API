@@ -3,6 +3,11 @@ import os
 import json
 from fastapi import HTTPException
 from typing import Dict
+import time
+from fastapi import HTTPException
+from app.database.connection import get_db
+from app.schemas.expense import DBRateLimit
+
 
 # File-backed shared token bucket memory storage path to link multiple cloud worker processes
 SHARED_LIMIT_FILE = "/tmp/render_shared_rate_limits.json"
@@ -27,41 +32,45 @@ def _save_shared_buckets(data: Dict[str, list]):
 
 def check_rate_limiting_guardrail(username: str, max_tokens: float = 2.0, refill_rate_per_sec: float = 0.1):
     """
-    Implements a file-persistent token bucket limit across all cloud worker processes.
-    Max 2 bursts, refills slowly (1 token every 10 seconds).
+    Persistent Database Token Bucket Limiter.
+    Forces all Render web servers to read from your live shared PostgreSQL tables.
     """
     if not username or username == "Unknown User":
         raise HTTPException(
             status_code=401,
-            detail="Not Authenticated: Safe block triggered due to missing user context token properties."
+            detail="Not Authenticated: Missing active user profile parameters."
         )
 
     current_time = time.time()
-    buckets = _load_shared_buckets()
 
-    if username not in buckets:
-        # Initialize user bucket state array format [last_check_time, current_tokens]
-        buckets[username] = [current_time, max_tokens]
-        _save_shared_buckets(buckets)
-        return
-
-    last_check, tokens = buckets[username]
-    
-    # Calculate token accumulation delta values over time intervals
-    elapsed = current_time - last_check
-    refilled_tokens = tokens + (elapsed * refill_rate_per_sec)
-    tokens = min(max_tokens, refilled_tokens)
-    
-    if tokens < 1.0:
-        print(f"⚠️ [Security Alarm] Shared Rate limit tripped for user: '{username}'!")
-        raise HTTPException(
-            status_code=429, 
-            detail="Too Many Requests: API speed cap exceeded. Please pace your communication loops."
-        )
+    with get_db() as db:
+        user_record = db.query(DBRateLimit).filter(DBRateLimit.username == username).first()
         
-    # Spend 1 token, update state arrays, and commit back to the persistent file partition
-    buckets[username] = [current_time, tokens - 1.0]
-    _save_shared_buckets(buckets)
+        if not user_record:
+            new_limit = DBRateLimit(
+                username=username,
+                last_check_time=current_time,
+                current_tokens=max_tokens - 1.0
+            )
+            db.add(new_limit)
+            return
+
+        elapsed_seconds = current_time - user_record.last_check_time
+        refilled_tokens = user_record.current_tokens + (elapsed_seconds * refill_rate_per_sec)
+        updated_tokens = min(max_tokens, refilled_tokens)
+        
+        if updated_tokens < 1.0:
+            print(f"🚨 [POSTGRESQL RATE LIMIT ALARM] Persistent speed wall tripped for user: '{username}'!")
+            raise HTTPException(
+                status_code=429, 
+                detail="Too Many Requests: API speed cap exceeded. Please pace your communication loops."
+            )
+            
+        user_record.last_check_time = current_time
+        user_record.current_tokens = updated_tokens - 1.0
+        db.add(user_record)
+        
+    print(f"🔒 Security Guardrail: Spent 1 token for user '{username}'. Tokens remaining: {updated_tokens - 1.0:.2f}")
 
 
 def sanitize_prompt_injection_guardrail(user_input: str) -> str:
