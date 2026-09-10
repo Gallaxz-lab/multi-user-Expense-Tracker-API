@@ -5,9 +5,8 @@ from fastapi import HTTPException
 from typing import Dict
 import time
 from fastapi import HTTPException
-from app.database.connection import get_db
+from app.database.connection import get_db, SessionLocal
 from app.schemas.expense import DBRateLimit
-from database.connection import SessionLocal
 
 # File-backed shared token bucket memory storage path to link multiple cloud worker processes
 SHARED_LIMIT_FILE = "/tmp/render_shared_rate_limits.json"
@@ -56,15 +55,15 @@ def check_rate_limiting_guardrail(username: str, max_tokens: float = 2.0, refill
                 current_tokens=max_tokens - 1.0 # Spend first token instantly
             )
             db.add(new_limit)
-            db.commit() # ✅ FORCE EXPLICIT WRITE IMMEDIATELY
+            db.commit()
             return
 
-        # User row exists: calculate token accumulation values over time intervals
+
         elapsed_seconds = current_time - user_record.last_check_time
         refilled_tokens = user_record.current_tokens + (elapsed_seconds * refill_rate_per_sec)
         updated_tokens = min(max_tokens, refilled_tokens)
         
-        # 🛑 SECURITY SHIELD TRIGGER: Block users with less than 1 token
+
         if updated_tokens < 1.0:
             print(f"🚨 [POSTGRESQL RATE LIMIT ALARM] Persistent speed wall tripped for user: '{username}'!")
             raise HTTPException(
@@ -72,13 +71,13 @@ def check_rate_limiting_guardrail(username: str, max_tokens: float = 2.0, refill
                 detail="Too Many Requests: API speed cap exceeded. Please pace your communication loops."
             )
             
-        # Spend 1 token, update values, and push down immediately to prevent fast timing exploits
+
         user_record.last_check_time = current_time
         user_record.current_tokens = updated_tokens - 1.0
         
         db.add(user_record)
-        db.commit() # ✅ FORCE EXPLICIT WRITE IMMEDIATELY
-        db.refresh(user_record) # Refresh object context keys instantly
+        db.commit() 
+        db.refresh(user_record) 
         
         print(f"🔒 Security Guardrail: Spent 1 token for user '{username}'. Tokens remaining: {updated_tokens - 1.0:.2f}")
 
