@@ -2,7 +2,6 @@ from typing import TypedDict, Optional, List, Dict, Any
 from pydantic import BaseModel, Field, field_validator
 import re
 
-# ─── 1. YOUR ORIGINAL LANGGRAPH STATE DICTIONARY (KEEP THIS!) ───
 class SupportRouterState(TypedDict):
     user_query: str
     current_user: Dict[str, Any]
@@ -16,7 +15,6 @@ class SupportRouterState(TypedDict):
     final_response: Optional[str]
 
 
-# ─── 2. NEW FASTAPI INPUT SANITIZER SCHEAMA (ADD THIS BELOW!) ───
 class UserSupportQueryInputSchema(BaseModel):
     """Strict Pydantic input sanitizer ensuring request validity at the API gateway."""
     query: str = Field(..., min_length=3, max_length=500, description="Conversational query payload text")
