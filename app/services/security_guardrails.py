@@ -7,7 +7,7 @@ import time
 from fastapi import HTTPException
 from app.database.connection import get_db
 from app.schemas.expense import DBRateLimit
-from app.database.connection import SessionLocal 
+from database.connection import SessionLocal
 
 # File-backed shared token bucket memory storage path to link multiple cloud worker processes
 SHARED_LIMIT_FILE = "/tmp/render_shared_rate_limits.json"
@@ -49,21 +49,22 @@ def check_rate_limiting_guardrail(username: str, max_tokens: float = 2.0, refill
         user_record = db.query(DBRateLimit).filter(DBRateLimit.username == username).first()
         
         if not user_record:
+            # First request: save initial bucket token arrays straight to database
             new_limit = DBRateLimit(
                 username=username,
                 last_check_time=current_time,
-                current_tokens=max_tokens - 1.0  # Spend first token instantly
+                current_tokens=max_tokens - 1.0 # Spend first token instantly
             )
             db.add(new_limit)
-            db.commit()  # Explicitly commit database rows safely
+            db.commit() # ✅ FORCE EXPLICIT WRITE IMMEDIATELY
             return
 
-        # Calculate refilled tokens token values over time deltas
+        # User row exists: calculate token accumulation values over time intervals
         elapsed_seconds = current_time - user_record.last_check_time
         refilled_tokens = user_record.current_tokens + (elapsed_seconds * refill_rate_per_sec)
         updated_tokens = min(max_tokens, refilled_tokens)
         
-        # 🛑 SPEED LIMIT SHIELD TRIGGER: Block users with less than 1 token
+        # 🛑 SECURITY SHIELD TRIGGER: Block users with less than 1 token
         if updated_tokens < 1.0:
             print(f"🚨 [POSTGRESQL RATE LIMIT ALARM] Persistent speed wall tripped for user: '{username}'!")
             raise HTTPException(
@@ -71,11 +72,13 @@ def check_rate_limiting_guardrail(username: str, max_tokens: float = 2.0, refill
                 detail="Too Many Requests: API speed cap exceeded. Please pace your communication loops."
             )
             
-        # Spend 1 token and update values
+        # Spend 1 token, update values, and push down immediately to prevent fast timing exploits
         user_record.last_check_time = current_time
         user_record.current_tokens = updated_tokens - 1.0
+        
         db.add(user_record)
-        db.commit()  # Explicitly commit database rows safely
+        db.commit() # ✅ FORCE EXPLICIT WRITE IMMEDIATELY
+        db.refresh(user_record) # Refresh object context keys instantly
         
         print(f"🔒 Security Guardrail: Spent 1 token for user '{username}'. Tokens remaining: {updated_tokens - 1.0:.2f}")
 

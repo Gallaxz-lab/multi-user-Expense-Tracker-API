@@ -53,6 +53,12 @@ async def health_check():
         "status": "healthy",
         "environment": settings.ENVIRONMENT,
     }
+    
+@app.on_event("startup")
+def configure_database_tables_on_boot():
+    print("🛢️  Connecting to database cluster engine and verifying table schemas...")
+    Base.metadata.create_all(bind=engine)
+    print("✅ All secure tracking database infrastructure tables are live and ready.")
 
 # Register Sub-Domain Architecture Router Modules
 app.include_router(auth.router)
