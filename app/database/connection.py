@@ -3,7 +3,6 @@ import urllib.parse
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.exc import OperationalError
-from contextlib import contextmanager 
 
 from app.config import settings
 
