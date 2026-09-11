@@ -10,3 +10,6 @@ class DBExpense(Base):
     description = Column(String, nullable=False)
     timestamp = Column(DateTime, default=datetime.utcnow)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+Expense = DBExpense
+Category = ["Food", "Meals", "Travel", "Accommodation", "Logistics", "Utilities"]
