@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy import Column, Integer, String, Float, Boolean # ✅ Float is already correctly imported here
 from app.database.connection import Base
 
 class DBUser(Base):
@@ -8,12 +8,12 @@ class DBUser(Base):
     hashed_password = Column(String, nullable=False)
     role = Column(String, default="User")  
     is_active = Column(Boolean, default=True)
-    
+
 User = DBUser
 
 class DBRateLimit(Base):
     __tablename__ = "security_rate_limits"
     
     username = Column(String, primary_key=True, index=True, nullable=False)
-    last_check_time = Column(float, nullable=False)
-    current_tokens = Column(float, nullable=False)
+    last_check_time = Column(Float, nullable=False)
+    current_tokens = Column(Float, nullable=False)
