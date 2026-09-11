@@ -7,6 +7,8 @@ An enterprise-ready, provider-agnostic hybrid RAG architecture and autonomous ag
 ## 🛠️ System Architecture & Data Flow
 
 Use code with caution.[ Ingest Pipeline ] ──► Permanent Cloud Binary Storage ──► [ 📁 Azure Blob Containers ]│[ Chat /ask Query ] ──► Multi-Tenant OData Filter Shield ──► [ 🔍 Azure AI Search Index ]│ (Hybrid Vector + Token)▼[ Clean Data JSON ] ◄── Configurable LLM Factory Engine  ◄── [ 📶 Cross-Encoder Reranker ]
+
+
 1. **Secure Storage Lake:** Raw PDF compliance documents and expense guidelines are streamed directly to **Azure Blob Storage** for permanent cloud archiving.
 2. **Multi-Tenant Ingestion:** Text is extracted, parsed into semantic shards, metadata-tagged with the authenticated user context (`owner_username`), and indexed persistently in **Azure AI Search**.
 3. **Optimized Cloud Retrieval:** Incoming queries use direct Azure Search Client interfaces to fire multi-engine **Hybrid Searches** (Dense Vectors + BM25 Keywords) coupled with strict OData filter constraints (`owner_username eq 'user'`), completely isolating tenant visibility walls.

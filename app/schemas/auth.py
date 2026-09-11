@@ -14,6 +14,8 @@ class UserCreate(BaseModel):
     password: str = Field(..., min_length=6)
     role: Optional[str] = "User"
 
+UserRegister = UserCreate
+
 class UserResponse(BaseModel):
     id: int
     username: str
