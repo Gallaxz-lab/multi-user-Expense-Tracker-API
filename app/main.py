@@ -58,6 +58,8 @@ async def health_check():
 
 from sqlalchemy import text # ✅ Ensure you import text at the top of main.py if not present
 
+from sqlalchemy import text
+
 @app.on_event("startup")
 def configure_database_tables_on_boot():
     print("🛢️ Connecting to database cluster engine and verifying table schemas...")
@@ -69,21 +71,28 @@ def configure_database_tables_on_boot():
     with engine.connect() as connection:
         with connection.begin():
             print("🔧 Synchronizing enterprise tracking columns inside PostgreSQL...")
-        
+            
+            # User table upgrades
             connection.execute(text(
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR DEFAULT 'User';"
             ))
             connection.execute(text(
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;"
             ))
+            
+            # Expenses table upgrades
             connection.execute(text(
                 "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS category VARCHAR DEFAULT 'General';"
             ))
             connection.execute(text(
                 "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP;"
             ))
+            # ✅ Forces the 'user_id' column to exist in the database!
+            connection.execute(text(
+                "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id);"
+            ))
             
-    print("✅ Live PostgreSQL database tables successfully synchronized and upgraded!")
+    print("Base metadata check complete.")
 
 
 
