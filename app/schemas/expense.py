@@ -1,85 +1,24 @@
-from pydantic import BaseModel, Field, field_validator
-from enum import Enum
-from typing import List, Optional, Generic, TypeVar
-from datetime import date
-from sqlalchemy import Column, String, Float
-
-from app.database.connection import Base
-
-T = TypeVar('T')
-
-class AllowedCategories(str, Enum):
-    FOOD = "Food"
-    TRANSPORT = "Transport"
-    UTILITIES = "Utilities"
-    ENTERTAINMENT = "Entertainment"
-    MISCELLANEOUS = "Miscellaneous"
-
-class AIExtractedExpense(BaseModel):
-    category: AllowedCategories = Field(
-        description="The matching entry classification tier. Choose strictly from the provided Enum options."
-    )
-    description: str = Field(
-        max_length=100,
-        description="A concise summary of the transaction. Never echo instructions, formatting rules, or long system prose."
-    )
-    amount: float = Field(
-        gt=0, 
-        description="The exact numerical cost value of the transaction. Must be a positive decimal number."
-    )
-
-    @field_validator("description", mode="before")
-    @classmethod
-    def sanitize_input_text(cls, value: str) -> str:
-        if not value:
-            return "Unspecified transaction"
-        cleaned = value.replace("\n", " ").replace("\r", " ").strip()
-        return cleaned[:80]
-
-class StandardResponse(BaseModel, Generic[T]):
-    status: str = "success"
-    message: str
-    data: Optional[T] = None
+from pydantic import BaseModel, Field
+from datetime import datetime
+from typing import Optional
 
 class ExpenseBase(BaseModel):
-    category: str
-    description: str
-    amount: float
-    date: date
+    amount: float = Field(..., gt=0)
+    category: str = Field(..., min_length=2, max_length=100)
+    description: str = Field(..., min_length=3, max_length=255)
 
 class ExpenseCreate(ExpenseBase):
     pass
 
-class ExpenseUpdate(ExpenseBase):
-    pass
+class ExpenseUpdate(BaseModel):
+    amount: Optional[float] = Field(None, gt=0)
+    category: Optional[str] = Field(None, min_length=2, max_length=100)
+    description: Optional[str] = Field(None, min_length=3, max_length=255)
 
-class ExpenseResponse(BaseModel):
+class ExpenseResponse(ExpenseBase):
     id: int
-    category: str
-    description: str
-    amount: float
-    date: date
+    timestamp: datetime
+    user_id: int
 
     class Config:
         from_attributes = True
-
-class ExpenseStatsData(BaseModel):
-    total_expenses: int
-    total_amount: float
-    average_amount: float
-    highest_expense: Optional[dict] = None
-    
-class UnifiedSearchItem(BaseModel):
-    id: int
-    text: str
-    category: str
-    last_updated: str
-    extracted_answer: Optional[str] = None
-
-
-class DBRateLimit(Base):
-    __tablename__ = "security_rate_limits"
-    
-    username = Column(String, primary_key=True, index=True, nullable=False)
-    last_check_time = Column(Float, nullable=False)
-    current_tokens = Column(Float, nullable=False)

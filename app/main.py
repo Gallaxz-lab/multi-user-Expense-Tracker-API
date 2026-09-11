@@ -62,12 +62,14 @@ from sqlalchemy import text # ✅ Ensure you import text at the top of main.py i
 def configure_database_tables_on_boot():
     print("🛢️ Connecting to database cluster engine and verifying table schemas...")
     
+    # 1. Build any completely missing tables
     Base.metadata.create_all(bind=engine)
     
+    # 2. Inject missing columns directly into your live production rows
     with engine.connect() as connection:
         with connection.begin():
             print("🔧 Synchronizing enterprise tracking columns inside PostgreSQL...")
-            
+        
             connection.execute(text(
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR DEFAULT 'User';"
             ))
@@ -77,8 +79,12 @@ def configure_database_tables_on_boot():
             connection.execute(text(
                 "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS category VARCHAR DEFAULT 'General';"
             ))
+            connection.execute(text(
+                "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP;"
+            ))
             
     print("✅ Live PostgreSQL database tables successfully synchronized and upgraded!")
+
 
 
 
