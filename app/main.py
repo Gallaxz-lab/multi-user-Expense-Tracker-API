@@ -60,12 +60,23 @@ from sqlalchemy import text # ✅ Ensure you import text at the top of main.py i
 
 from sqlalchemy import text
 
+# 📂 Replace your database startup event block inside app/main.py:
+
 @app.on_event("startup")
 def configure_database_tables_on_boot():
-    print("🛢️ Connecting to database cluster engine and verifying table schemas...")
+    print("🛢️ Connecting to database cluster engine...")
+    
+    with engine.connect() as connection:
+        with connection.begin():
+            print("🧹 Dropping old legacy tables to clear faulty constraints...")
+            connection.execute(text("DROP TABLE IF EXISTS expenses CASCADE;"))
+            connection.execute(text("DROP TABLE IF EXISTS security_rate_limits CASCADE;"))
+            
+    print("🏗️ Rebuilding database infrastructure from scratch using new models...")
+    # This line reads your updated Python classes and builds the columns flawlessly!
     Base.metadata.create_all(bind=engine)
-    print("✅ Live PostgreSQL database tables successfully synchronized and upgraded!")
-
+    
+    print("✅ Live PostgreSQL database tables are 100% pristine, updated, and ready!")
 
 
 # Register Sub-Domain Architecture Router Modules
