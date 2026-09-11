@@ -66,7 +66,7 @@ def configure_database_tables_on_boot():
     
     with engine.connect() as connection:
         with connection.begin():
-            print("🔧 Checking for missing enterprise user tracking columns inside PostgreSQL...")
+            print("🔧 Synchronizing enterprise tracking columns inside PostgreSQL...")
             
             connection.execute(text(
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR DEFAULT 'User';"
@@ -74,8 +74,12 @@ def configure_database_tables_on_boot():
             connection.execute(text(
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;"
             ))
+            connection.execute(text(
+                "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS category VARCHAR DEFAULT 'General';"
+            ))
             
     print("✅ Live PostgreSQL database tables successfully synchronized and upgraded!")
+
 
 
 # Register Sub-Domain Architecture Router Modules
