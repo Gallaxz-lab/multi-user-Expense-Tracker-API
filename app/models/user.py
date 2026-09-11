@@ -1,12 +1,15 @@
-from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime
+from datetime import datetime
 from app.database.connection import Base
 
-class DBUser(Base):
-    __tablename__ = "users"
+class DBExpense(Base):
+    __tablename__ = "expenses"
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, index=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
-    role = Column(String, default="User")  
-    is_active = Column(Boolean, default=True)
+    amount = Column(Float, nullable=False)
+    category = Column(String, nullable=False)
+    description = Column(String, nullable=False)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
-User = DBUser
+Expense = DBExpense
+Category = ["Food", "Meals", "Travel", "Accommodation", "Logistics", "Utilities"]
