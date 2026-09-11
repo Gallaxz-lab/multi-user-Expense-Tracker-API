@@ -10,3 +10,10 @@ class DBUser(Base):
     is_active = Column(Boolean, default=True)
     
 User = DBUser
+
+class DBRateLimit(Base):
+    __tablename__ = "security_rate_limits"
+    
+    username = Column(String, primary_key=True, index=True, nullable=False)
+    last_check_time = Column(float, nullable=False)
+    current_tokens = Column(float, nullable=False)
