@@ -67,7 +67,7 @@ def configure_database_tables_on_boot():
     # 1. Build any completely missing tables
     Base.metadata.create_all(bind=engine)
     
-    # 2. Inject missing columns directly into your live production rows
+    # 2. Inject missing columns and drop legacy constraints directly inside PostgreSQL
     with engine.connect() as connection:
         with connection.begin():
             print("🔧 Synchronizing enterprise tracking columns inside PostgreSQL...")
@@ -80,20 +80,24 @@ def configure_database_tables_on_boot():
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;"
             ))
             
-            # Expenses table upgrades
+            # Expenses table column expansions
             connection.execute(text(
                 "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS category VARCHAR DEFAULT 'General';"
             ))
             connection.execute(text(
                 "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP;"
             ))
-            # ✅ Forces the 'user_id' column to exist in the database!
             connection.execute(text(
                 "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id);"
             ))
             
-    print("Base metadata check complete.")
-
+            # ✅ THE FIX: Lift the NOT NULL restriction from the old legacy category_id field
+            # This allows our new text-based category parameters to insert seamlessly!
+            connection.execute(text(
+                "ALTER TABLE expenses ALTER COLUMN category_id DROP NOT NULL;"
+            ))
+            
+    print("✅ Live PostgreSQL database tables successfully synchronized and upgraded!")
 
 
 
