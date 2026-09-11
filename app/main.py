@@ -54,11 +54,29 @@ async def health_check():
         "environment": settings.ENVIRONMENT,
     }
     
+# 📂 Open app/main.py and replace your startup event block:
+
+from sqlalchemy import text # ✅ Ensure you import text at the top of main.py if not present
+
 @app.on_event("startup")
 def configure_database_tables_on_boot():
-    print("🛢️  Connecting to database cluster engine and verifying table schemas...")
+    print("🛢️ Connecting to database cluster engine and verifying table schemas...")
+    
     Base.metadata.create_all(bind=engine)
-    print("✅ All secure tracking database infrastructure tables are live and ready.")
+    
+    with engine.connect() as connection:
+        with connection.begin():
+            print("🔧 Checking for missing enterprise user tracking columns inside PostgreSQL...")
+            
+            connection.execute(text(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR DEFAULT 'User';"
+            ))
+            connection.execute(text(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;"
+            ))
+            
+    print("✅ Live PostgreSQL database tables successfully synchronized and upgraded!")
+
 
 # Register Sub-Domain Architecture Router Modules
 app.include_router(auth.router)
