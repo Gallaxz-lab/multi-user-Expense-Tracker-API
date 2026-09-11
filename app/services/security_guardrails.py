@@ -1,6 +1,7 @@
 import time
+import re
 from fastapi import HTTPException
-from app.schemas.expense import DBRateLimit
+from app.models.user import DBRateLimit
 from app.database.connection import SessionLocal
 
 def check_rate_limiting_guardrail(username: str, max_tokens: float = 2.0, refill_rate_per_sec: float = 0.1):
